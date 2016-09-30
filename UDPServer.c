@@ -1,12 +1,14 @@
 #include "UDPProxy.h"
 
+
 int main(int argc, char **argv) {
     int sock, port, len, one = 1;
     struct sockaddr_in addr, client;
-    char buff[BUFF_LEN];    
+    char buff[BUFF_LEN];
+    char addr_buff[INET_ADDRSTRLEN];
 
     if(argc < 2) {
-        die("Please enter port");
+        die("Usage: UDPServer <port>");
     }
     port = atoi(argv[1]);
 
@@ -34,9 +36,10 @@ int main(int argc, char **argv) {
                   (socklen_t *)&len) < 0) {
             die("Receive error");
         }
-        printf("Received Packet\n");
+        
+        inet_ntop(AF_INET, &client.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
+        printf("Received Packet from %s:%d\n", addr_buff, client.sin_port);
     }
-
-    
+ 
     return 0;
 }

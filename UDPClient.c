@@ -6,8 +6,8 @@ int main(int argc, char **argv) {
     int sock, port, i, num_pkts, len = sizeof(client);
     char buff[BUFF_LEN];
 
-    if(argc > 4) {
-        die("Usage: UDPProxy <server_ip> <server_port> <num_packets>");
+    if(argc < 4) {
+        die("Usage: UDPClient <server_ip> <server_port> <num_packets>");
     }
     port = atoi(argv[2]);
     num_pkts = atoi(argv[3]);

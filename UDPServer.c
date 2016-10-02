@@ -2,7 +2,7 @@
 
 
 int main(int argc, char **argv) {
-    int sock, port, len, one = 1;
+    int sock, port, len, flags = 0x01;
     struct sockaddr_in addr, client;
     char buff[BUFF_LEN];
     char addr_buff[INET_ADDRSTRLEN];
@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
         die("Socket Error");
     }
 
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(flags)) < 0) {
         die ("setsockopt error");
     }
     

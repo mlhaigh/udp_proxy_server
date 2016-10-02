@@ -5,6 +5,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <netinet/in.h>
+//#include <netinet/ip.h>
 
 #define BUFF_LEN 1024
 

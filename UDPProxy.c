@@ -21,6 +21,10 @@ int main(int argc, char **argv) {
         die ("setsockopt error");
     } */
 
+    if (setsockopt(sock, SOL_IP, IP_TRANSPARENT, &flags, sizeof(flags)) < 0) {
+        die ("setsockopt error");
+    }
+
     if (setsockopt(sock, IPPROTO_IP, IP_RECVORIGDSTADDR, &flags, sizeof(flags)) < 0) {
         die ("setsockopt error");
     }

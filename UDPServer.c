@@ -29,6 +29,10 @@ int main(int argc, char **argv) {
         die("Socket bind failure");
     }
 
+    /* printing socket info for testing */
+    inet_ntop(AF_INET, &addr.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
+    printf("Listening on %s:%d\n", addr_buff, ntohs(addr.sin_port));
+
     len = sizeof(client);
 
     while(1) {
@@ -38,7 +42,10 @@ int main(int argc, char **argv) {
         }
         
         inet_ntop(AF_INET, &client.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
-        printf("Received Packet from %s:%d\n", addr_buff, client.sin_port);
+        printf("Received Packet from %s:%d\n", addr_buff, ntohs(client.sin_port));
+        //getsockopt(sock, SOL_IP, SO_ORIGINAL_DST, &addr, &len);
+        inet_ntop(AF_INET, &addr, addr_buff, INET_ADDRSTRLEN);
+        printf("Original Dest: %s:%d\n", addr_buff, ntohs(addr.sin_port));
     }
  
     return 0;

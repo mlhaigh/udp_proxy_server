@@ -4,16 +4,20 @@ CFLAGS=-g -Wall
 #default: UDPProxy
 default: UDPClient
 
-INCS= -I/usr/include/glib-2.0
-
 clean:
-	rm -f *.o UDPProxy UDPClient UDPServer
+	rm -f *.o UDPProxy UDPClient UDPServer hashtable
+
+UDPProxy: UDPProxy.h UDPServer UDPClient hashtable.c
+	$(CC) -o UDPProxy UDPProxy.c hashtable.c
 
 UDPClient: UDPClient.c UDPProxy.h UDPServer
-	$(CC) -o UDPClient UDPClient.c $(INCS) `pkg-config --cflags --libs glib-2.0`
+	$(CC) -o UDPClient UDPClient.c 
 
 UDPServer: UDPServer.c UDPProxy.h
-	$(CC) -o UDPServer UDPServer.c $(INCS) `pkg-config --cflags --libs glib-2.0`
+	$(CC) -o UDPServer UDPServer.c 
+
+hashtable:
+	$(CC) -o hashtable hashtable.c
 
 #UDPProxy: UDPClient UDPServer UDPProxy.c UDPProxy.h
 #	$(CC) -o UDPProxy UDPProxy.c $(INCS) `pkg-config --cflags --libs glib-2.0`

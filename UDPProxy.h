@@ -7,7 +7,6 @@
 #include <netdb.h>
 #include <netinet/in.h>
 //#include <netinet/ip.h>
-#include <glib.h>
 #include <linux/netfilter_ipv4.h>
 
 #define BUFF_LEN 1500

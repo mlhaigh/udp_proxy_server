@@ -163,7 +163,7 @@ int add(char *key, int value, hashtable_t *ht) {
             } 
             //entry is already present
             else if (strncmp(key, ht->table[idx]->key, len) == 0) {
-                destroy_entry(new_entry);
+                destroy_entry(entry);
                 return idx;
             }
         }
@@ -185,7 +185,7 @@ void print_table(hashtable_t *ht) {
     }
 }
 
-int main(int argc, char **argv) {
+/* int main(int argc, char **argv) {
     hashtable_t *ht = new_ht();
     printf("created hashtable\n");
     add("one", 1, ht);
@@ -203,4 +203,4 @@ int main(int argc, char **argv) {
     add("ten", 10, ht);
     print_table(ht);
     destroy_ht(ht);
-}
+} */

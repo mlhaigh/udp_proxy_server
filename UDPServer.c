@@ -1,6 +1,5 @@
 #include "UDPProxy.h"
 
-
 int main(int argc, char **argv) {
     int sock, port, len, flags = 0x01;
     struct sockaddr_in addr, client;
@@ -44,8 +43,8 @@ int main(int argc, char **argv) {
         inet_ntop(AF_INET, &client.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
         printf("Received Packet from %s:%d\n", addr_buff, ntohs(client.sin_port));
         //getsockopt(sock, SOL_IP, SO_ORIGINAL_DST, &addr, &len);
-        inet_ntop(AF_INET, &addr, addr_buff, INET_ADDRSTRLEN);
-        printf("Original Dest: %s:%d\n", addr_buff, ntohs(addr.sin_port));
+        //inet_ntop(AF_INET, &addr, addr_buff, INET_ADDRSTRLEN);
+        //printf("Original Dest: %s:%d\n", addr_buff, ntohs(addr.sin_port));
     }
  
     return 0;

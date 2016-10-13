@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-g -Wall
 
 #default: UDPProxy
-default: UDPClient
+default: UDPProxy
 
 clean:
 	rm -f *.o UDPProxy UDPClient UDPServer hashtable

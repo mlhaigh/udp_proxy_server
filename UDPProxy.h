@@ -14,34 +14,56 @@
 #include <sys/types.h>
 
 #define BUFF_LEN 1500
-#define STR_BUF_LEN 42 //16x2 for IP, 5x2 for port
+#define DST_PORT 8889
+#define DST_IP "127.0.0.1"
+#define TUPLE_SZ 20
 
 void die(char *msg) {
     perror(msg);
     exit(1);
 }
 
-/* fill buff with UDP 4-tuple as string for hashing */
-//void addr_to_str(struct sockaddr_in src, char *buff) {
-//    int i;
-//    char src_port = (char) (src.sin_port & 0x255);
-//    inet_ntop(AF_INET, &src.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
-//    for (i = 0; i < 16; i++) {
-//        str_buff[i] = addr_buff[i];
-//    }
-//    for (i = 0; i < 5; i++) {
-//        str_buff[i + 15] = src_port[i];
-//    }
-//    /* figure out how to get destination information from packet and 
-//     * complete the string. For now cannot get destination. */
-//    for (i = 0; i < 16; i++) {
-//        str_buff[i + 21] = DEST_IP[i] 
-//    }
-//    for (i = 0; i < 5; i++) {
-//        str_buff[i + 37] = DEST_PORT[i];
-//    }
-//    printf("addr_to_str: %s\n", str_buff);
-//}
+typedef struct tuple {
+    unsigned long src_ip;
+    unsigned short src_port;
+    unsigned long dst_ip;
+    unsigned short dst_port;
+} tuple_t;
+
+/* assume long is 8 bytes, short 2 */
+void addr_to_tuple(struct sockaddr_in *src, struct sockaddr_in *dst, \
+        tuple_t *res) {
+    printf("addr_to_tuple\n");
+    struct in_addr *dst_addr = malloc(sizeof(struct in_addr));
+    res->src_ip = src->sin_addr.s_addr;
+    printf("src_ip: %u\n", res->src_ip);
+    res->src_port = src->sin_port;
+    printf("src_port: %u\n", res->src_port);
+    inet_pton(AF_INET, DST_IP, dst_addr);
+    printf("pton\n");
+    res->dst_ip = dst_addr->s_addr;
+    printf("dst_addr: %u\n", res->dst_ip);
+    res->dst_port = htons(DST_PORT);
+    printf("end addr_to_tuple\n");
+    free(dst_addr);
+}
+
+int compare_tuple(tuple_t *a, tuple_t *b) {
+    if (((a->src_ip == b->src_ip) && (a->src_port == b->src_port) && \
+        (a->dst_ip == b->dst_ip) && (a->dst_port == b->dst_port)) || \
+        ((a->src_ip == b->dst_ip) && (a->src_port == b->dst_port) && \
+         (a->dst_ip == b->src_ip) && (a->dst_port == b->src_port))) {
+        return 1;
+    }
+    return 0;
+}
+
+void copy_tuple(tuple_t *src, tuple_t *dst) {
+    dst->src_ip = src->src_ip;
+    dst->src_port = src->src_port;
+    dst->dst_ip = src->dst_ip;
+    dst->dst_port = src->dst_port;
+}
 
 int bind_sock(int ip, int port) {
 	int fd, flags = 0x01;

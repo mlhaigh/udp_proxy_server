@@ -1,12 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "UDPProxy.h" 
 
 #define INIT_TBL_SZ 37
 
+char addr_buff[INET_ADDRSTRLEN];
+
+
 /* a key/value pair in the hashtable */
 typedef struct entry {
-    char *key;
+    tuple_t *key;
     int value;
 } entry_t;
 
@@ -17,21 +18,46 @@ typedef struct hashtable {
     entry_t **table;
 } hashtable_t;
 
+
+void print_entry(entry_t *e) {
+    tuple_t *t = e->key;
+    printf("Entry: Tuple: src: %u:%u dst: %u:%u. Value: %d\n", t->src_ip, \
+            ntohs(t->src_port), t->dst_ip, ntohs(t->dst_port), e->value);
+    inet_ntop(AF_INET, &t->src_ip, addr_buff, INET_ADDRSTRLEN);
+    printf("src_ip string: %s\n", addr_buff);
+    inet_ntop(AF_INET, &t->dst_ip, addr_buff, INET_ADDRSTRLEN);
+    printf("dst_ip string: %s\n", addr_buff);
+}
+
+void print_table(hashtable_t *ht) {
+    printf("****HASHTABLE*****\n");
+    int i;
+    for (i = 0; i < ht->capacity; i++) {
+        if (ht->table[i]) {
+            printf("Entry at [%d] ", i);
+            print_entry(ht->table[i]);
+        }
+    }
+    printf("****END****\n");
+}
+
 /* create a new key/value pair */
-entry_t *new_entry(char *key, int value) {
+entry_t *new_entry(tuple_t *key, int value) {
+    printf("new entry: size: %d\n", sizeof(entry_t));
     entry_t *new_entry = malloc(sizeof(entry_t));
-    int len = strlen(key);
-    new_entry->key = malloc(len * sizeof(char));
-    strncpy(new_entry->key, key, len);
+    new_entry->key = malloc(sizeof(tuple_t));
+    copy_tuple(key, new_entry->key);
     new_entry->value = value;
     return new_entry;
 }
 
-/* destroy a key/value pair.
- * */
+/* destroy a key/value pair. */
 void destroy_entry(entry_t *e) {
+    printf("destroy_entry\n");
     free(e->key);
+    printf("key freed\n");
     free(e);
+    printf("entry freed\n");
 }
 
 /* create a new hashtable */
@@ -45,21 +71,40 @@ hashtable_t *new_ht() {
 
 /* destroy a hashtable */
 void destroy_ht(hashtable_t *ht) {
+    printf("destroy_ht\n");
     int i;
     for (i = 0; i < ht->capacity; i++) {
         if (ht->table[i]) {
+            printf("about to destroy:");
+            print_entry(ht->table[i]);
             destroy_entry(ht->table[i]);
         }
     }
+    printf("freeing table\n");
+    free(ht->table);
     free(ht);
+    printf("hashtable destroyed\n");
 }
+
+///* simple hash function inspired by
+// * http://stackoverflow.com/questions/14409466/simple-hash-functions */
+//uint hash(char *key, hashtable_t *ht) {
+//    int i;
+//    uint hash = 0;
+//    for (i = 0; key[i]!='\0'; i++) {
+//        hash = key[i] + (hash << 6) + (hash << 16) - hash;
+//    }
+//    hash = hash % ht->capacity;
+//    return hash;
+//}
 
 /* simple hash function inspired by
  * http://stackoverflow.com/questions/14409466/simple-hash-functions */
-uint hash(char *key, hashtable_t *ht) {
+uint hash(void *tuple_key, hashtable_t *ht) {
+    uint8_t *key = (uint8_t *)tuple_key; 
     int i;
     uint hash = 0;
-    for (i = 0; key[i]!='\0'; i++) {
+    for (i = 0; i < TUPLE_SZ; i++) {
         hash = key[i] + (hash << 6) + (hash << 16) - hash;
     }
     hash = hash % ht->capacity;
@@ -84,14 +129,14 @@ uint hash(char *key, hashtable_t *ht) {
 
 /* check if key, value is in table. Returns index on success. Returns 0
  * if not found */
-int contains(char *key, hashtable_t *ht) {
+int contains(tuple_t *key, hashtable_t *ht) {
     int hash_val = hash(key, ht);
     //not found
     if (!(ht->table[hash_val])) {
         return 0;
     } else { //entry is occupied
         //match
-        if (*(ht->table[hash_val]->key) == *key) {
+        if (compare_tuple(key, ht->table[hash_val]->key)) {
             return hash_val;
         }
         //no match - check following entries
@@ -103,7 +148,7 @@ int contains(char *key, hashtable_t *ht) {
                 return 0;
             }
             //match
-            else if (*(ht->table[entry]->key) == *key) {
+            else if (compare_tuple(key, ht->table[entry]->key)) {
                 return entry;
             }
         }
@@ -112,12 +157,12 @@ int contains(char *key, hashtable_t *ht) {
 }
 
 /* retrieve an entry from a hashtable. Returns value on success, -1 on failure */
-int get(char *key, hashtable_t *ht) {
+int get(tuple_t *key, hashtable_t *ht) {
     int index = contains(key, ht);
     //there is something at the hash index
     if (index) {
         //match
-        if (*(ht->table[index]->key) == *key) {
+        if (compare_tuple(key, ht->table[index]->key)) {
             return ht->table[index]->value;
         } 
         //no match - check following entries
@@ -130,7 +175,7 @@ int get(char *key, hashtable_t *ht) {
                 return -1;
             }
             //match
-            if (*(ht->table[entry]->key) == *key) {
+            if (compare_tuple(key, ht->table[entry]->key)) {
                 return entry;
             }
         }
@@ -139,18 +184,18 @@ int get(char *key, hashtable_t *ht) {
     return -1;
 }
 
-void remove_entry(char *key, hashtable_t *ht) {
+void remove_entry(tuple_t *key, hashtable_t *ht) {
     int index = contains(key, ht);
     if (index) {
         destroy_entry(ht->table[index]);
+        ht->table[index] = 0;
     }
 }
 
 /* add an entry to the hash table. Returns the index of the entry 
  * if an entry already exists, returns the index */
-int add(char *key, int value, hashtable_t *ht) {
-    int idx, len = strlen(key);
-    int hash_val = hash(key, ht);
+int add(tuple_t *key, int value, hashtable_t *ht) {
+    int idx, hash_val = hash(key, ht);
     entry_t *entry = new_entry(key, value);
     //location is occupied
     if (ht->table[hash_val]) {
@@ -162,7 +207,7 @@ int add(char *key, int value, hashtable_t *ht) {
                 hash_val = idx;
             } 
             //entry is already present
-            else if (strncmp(key, ht->table[idx]->key, len) == 0) {
+            else if (compare_tuple(key, ht->table[idx]->key)) {
                 destroy_entry(entry);
                 return idx;
             }
@@ -174,33 +219,28 @@ int add(char *key, int value, hashtable_t *ht) {
     return idx; 
 }
 
-void print_table(hashtable_t *ht) {
-    printf("****HASHTABLE*****\n");
-    int i;
-    for (i = 0; i < ht->capacity; i++) {
-        if (ht->table[i]) {
-            printf("*****[%d]:\tkey:%s\tvalue:%d\n", i, ht->table[i]->key, \
-                    ht->table[i]->value);
-        }
-    }
-}
 
-/* int main(int argc, char **argv) {
+int main(int argc, char **argv) {
     hashtable_t *ht = new_ht();
     printf("created hashtable\n");
-    add("one", 1, ht);
-    add("two", 2, ht);
-    add("three", 3, ht);
+    struct sockaddr_in addr; 
+    memset((char *) &addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(4444);
+    addr.sin_addr.s_addr = htonl(2130706433);
+    tuple_t *key = calloc(1, sizeof(tuple_t));
+    addr_to_tuple(&addr, &addr, key);
+    add(key, 1, ht);
     print_table(ht);
-    printf("Contains(\"two\", ht):%d\n", contains("two", ht));
-    remove_entry("two", ht);
-    printf("after remove: Contains(\"two\", ht):%d\n", contains("two", ht));
-    add("two", 2, ht);
-    printf("after 2nd add: Contains(\"two\", ht):%d\n", contains("two", ht));
-    int three = get("three", ht);
-    printf("got three:%d\n", three);
-    add("ten", 10, ht);
-    add("ten", 10, ht);
+    memset((char *) &addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(4443);
+    addr.sin_addr.s_addr = htonl(2130706433);
+    addr_to_tuple(&addr, &addr, key);
+    add(key, 2, ht);
     print_table(ht);
+    remove_entry(key, ht);
+    print_table(ht);
+    free(key);
     destroy_ht(ht);
-} */
+} 

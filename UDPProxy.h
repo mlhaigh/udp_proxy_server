@@ -22,6 +22,7 @@
 #define DST_IP "127.0.0.1"
 #define TUPLE_SZ 20
 
+/* a 4-tuple representing a UDP connection */
 typedef struct tuple {
     unsigned long src_ip;
     unsigned short src_port;
@@ -35,7 +36,7 @@ typedef struct entry {
     int value;
 } entry_t;
 
-/* the hashtable */
+/* a hashtable */
 typedef struct hashtable {
     int size;
     int capacity;

@@ -1,26 +1,22 @@
 CC=gcc
 CFLAGS=-g -Wall
 
-#default: UDPProxy
 default: UDPProxy
 
 clean:
 	rm -f *.o UDPProxy UDPClient UDPServer hashtable
 
-UDPProxy: UDPProxy.h UDPServer UDPClient hashtable.c
-	$(CC) -o UDPProxy UDPProxy.c hashtable.c
+UDPProxy: UDPProxy.o hashtable.o UDPSocket.o UDPServer UDPClient
+	$(CC) -o UDPProxy UDPProxy.o UDPSocket.o hashtable.o 
 
-UDPClient: UDPClient.c UDPProxy.h UDPServer
-	$(CC) -o UDPClient UDPClient.c 
+UDPClient: UDPClient.o
+	$(CC) -o UDPClient UDPSocket.o UDPClient.o
 
-UDPServer: UDPServer.c UDPProxy.h
-	$(CC) -o UDPServer UDPServer.c 
+UDPServer: UDPServer.o
+	$(CC) -o UDPServer UDPSocket.o UDPServer.o 
 
-hashtable:
-	$(CC) -o hashtable hashtable.c
-
-#UDPProxy: UDPClient UDPServer UDPProxy.c UDPProxy.h
-#	$(CC) -o UDPProxy UDPProxy.c $(INCS) `pkg-config --cflags --libs glib-2.0`
+%.o: %.c
+		$(CC) $(CFLAGS) -c $*.c 
 
 all: clean default
 

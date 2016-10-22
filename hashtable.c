@@ -4,24 +4,44 @@
 
 char addr_buff[INET_ADDRSTRLEN];
 
+/* assume long is 8 bytes, short 2 */
+void addr_to_tuple(struct sockaddr_in *src, struct sockaddr_in *dst, \
+        tuple_t *res) {
+    printf("addr_to_tuple\n");
+    struct in_addr *dst_addr = malloc(sizeof(struct in_addr));
+    res->src_ip = src->sin_addr.s_addr;
+    printf("src_ip: %lu\n", res->src_ip);
+    res->src_port = src->sin_port;
+    printf("src_port: %u\n", res->src_port);
+    inet_pton(AF_INET, DST_IP, dst_addr);
+    printf("pton\n");
+    res->dst_ip = dst_addr->s_addr;
+    printf("dst_addr: %lu\n", res->dst_ip);
+    res->dst_port = htons(DST_PORT);
+    printf("end addr_to_tuple\n");
+    free(dst_addr);
+}
 
-/* a key/value pair in the hashtable */
-typedef struct entry {
-    tuple_t *key;
-    int value;
-} entry_t;
+int compare_tuple(tuple_t *a, tuple_t *b) {
+    if (((a->src_ip == b->src_ip) && (a->src_port == b->src_port) && \
+        (a->dst_ip == b->dst_ip) && (a->dst_port == b->dst_port)) || \
+        ((a->src_ip == b->dst_ip) && (a->src_port == b->dst_port) && \
+         (a->dst_ip == b->src_ip) && (a->dst_port == b->src_port))) {
+        return 1;
+    }
+    return 0;
+}
 
-/* the hashtable */
-typedef struct hashtable {
-    int size;
-    int capacity;
-    entry_t **table;
-} hashtable_t;
-
+void copy_tuple(tuple_t *src, tuple_t *dst) {
+    dst->src_ip = src->src_ip;
+    dst->src_port = src->src_port;
+    dst->dst_ip = src->dst_ip;
+    dst->dst_port = src->dst_port;
+}
 
 void print_entry(entry_t *e) {
     tuple_t *t = e->key;
-    printf("Entry: Tuple: src: %u:%u dst: %u:%u. Value: %d\n", t->src_ip, \
+    printf("Entry: Tuple: src: %lu:%u dst: %lu:%u. Value: %d\n", t->src_ip, \
             ntohs(t->src_port), t->dst_ip, ntohs(t->dst_port), e->value);
     inet_ntop(AF_INET, &t->src_ip, addr_buff, INET_ADDRSTRLEN);
     printf("src_ip string: %s\n", addr_buff);
@@ -43,7 +63,6 @@ void print_table(hashtable_t *ht) {
 
 /* create a new key/value pair */
 entry_t *new_entry(tuple_t *key, int value) {
-    printf("new entry: size: %d\n", sizeof(entry_t));
     entry_t *new_entry = malloc(sizeof(entry_t));
     new_entry->key = malloc(sizeof(tuple_t));
     copy_tuple(key, new_entry->key);
@@ -53,11 +72,8 @@ entry_t *new_entry(tuple_t *key, int value) {
 
 /* destroy a key/value pair. */
 void destroy_entry(entry_t *e) {
-    printf("destroy_entry\n");
     free(e->key);
-    printf("key freed\n");
     free(e);
-    printf("entry freed\n");
 }
 
 /* create a new hashtable */
@@ -71,19 +87,14 @@ hashtable_t *new_ht() {
 
 /* destroy a hashtable */
 void destroy_ht(hashtable_t *ht) {
-    printf("destroy_ht\n");
     int i;
     for (i = 0; i < ht->capacity; i++) {
         if (ht->table[i]) {
-            printf("about to destroy:");
-            print_entry(ht->table[i]);
             destroy_entry(ht->table[i]);
         }
     }
-    printf("freeing table\n");
     free(ht->table);
     free(ht);
-    printf("hashtable destroyed\n");
 }
 
 ///* simple hash function inspired by
@@ -195,7 +206,8 @@ void remove_entry(tuple_t *key, hashtable_t *ht) {
 /* add an entry to the hash table. Returns the index of the entry 
  * if an entry already exists, returns the index */
 int add(tuple_t *key, int value, hashtable_t *ht) {
-    int idx, hash_val = hash(key, ht);
+    int hash_val = hash(key, ht);
+    int idx = hash_val;
     entry_t *entry = new_entry(key, value);
     //location is occupied
     if (ht->table[hash_val]) {
@@ -213,16 +225,15 @@ int add(tuple_t *key, int value, hashtable_t *ht) {
             }
         }
     }
-    ht->table[hash_val] = entry;
-    //printf("added to index: key:%s\tvalue:%d\n", \
-    //        ht->table[hash_val]->key, ht->table[hash_val]->value);
+    ht->table[idx] = entry;
+    /* printf("added to index: key:%s\tvalue:%d\n", \
+            ht->table[hash_val]->key, ht->table[hash_val]->value); */
     return idx; 
 }
 
-
+/*
 int main(int argc, char **argv) {
     hashtable_t *ht = new_ht();
-    printf("created hashtable\n");
     struct sockaddr_in addr; 
     memset((char *) &addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -243,4 +254,4 @@ int main(int argc, char **argv) {
     print_table(ht);
     free(key);
     destroy_ht(ht);
-} 
+} */

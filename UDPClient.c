@@ -2,7 +2,7 @@
 
 int main(int argc, char **argv) {
 
-    struct sockaddr_in serv_addr, clnt_addr;
+    struct sockaddr_in serv_addr, clnt_addr, recv;
     int sock, port, clnt_port, num_pkts, i, len = sizeof(serv_addr);
     int flags = 0x01;
     char buff[BUFF_LEN];
@@ -57,6 +57,14 @@ int main(int argc, char **argv) {
         printf("Packet %d sent from %s:%d to %s:%d\n", i, addr_buff2, \
                 ntohs(clnt_addr.sin_port), addr_buff, \
                 ntohs(serv_addr.sin_port));
+        
+        /* receive reply */
+        if (recvfrom(sock, buff, BUFF_LEN, 0, (struct sockaddr *) &recv,\
+                  (socklen_t *)&len) < 0) {
+            die("Receive error");
+        } 
+        inet_ntop(AF_INET, &recv.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
+        printf("Received Packet from %s:%d\n", addr_buff, ntohs(recv.sin_port));
     }
 
     return 0;

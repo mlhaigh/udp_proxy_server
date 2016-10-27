@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
                                 /* prepare address for destination */
                                 memset((char *) &dst, 0, sizeof(dst));
                                 dst.sin_family = AF_INET;
-                                dst.sin_port = htons(cur_tuple->src_port);
+                                dst.sin_port = cur_tuple->src_port;
                                 inet_aton(addr_buff, &dst.sin_addr);
                                 break;
                             }

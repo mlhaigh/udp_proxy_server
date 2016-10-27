@@ -38,13 +38,20 @@ int main(int argc, char **argv) {
         if (recvfrom(sock, buff, BUFF_LEN, 0, (struct sockaddr *) &client,\
                   (socklen_t *)&len) < 0) {
             die("Receive error");
-        }
-        
+        } 
         inet_ntop(AF_INET, &client.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
         printf("Received Packet from %s:%d\n", addr_buff, ntohs(client.sin_port));
-        //getsockopt(sock, SOL_IP, SO_ORIGINAL_DST, &addr, &len);
-        //inet_ntop(AF_INET, &addr, addr_buff, INET_ADDRSTRLEN);
-        //printf("Original Dest: %s:%d\n", addr_buff, ntohs(addr.sin_port));
+        
+        /* send response packet */
+        if (sendto(sock, buff, BUFF_LEN, 0, (struct sockaddr *)&client, len) \
+                < 0) {
+            die("Send Error");
+        }
+        inet_ntop(AF_INET, &client.sin_addr.s_addr, addr_buff, INET_ADDRSTRLEN);
+        printf("Sent response packet to %s:%d\n", addr_buff, \
+                ntohs(client.sin_port));
+
+
     }
  
     return 0;

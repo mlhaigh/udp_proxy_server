@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/timerfd.h>
+#include <errno.h>
 
 #define BUFF_LEN 1500
 #define DST_PORT 8889

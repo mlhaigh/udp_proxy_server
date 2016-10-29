@@ -11,7 +11,7 @@ void sighandler(int);
 int main(int argc, char **argv) {
     struct sockaddr_in addr, dst;
     struct in_addr inaddr;
-	int in_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd;
+	int in_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd, res;
     int len = sizeof(addr);
 	char buff[BUFF_LEN];
 	char addr_buff[INET_ADDRSTRLEN];
@@ -19,7 +19,8 @@ int main(int argc, char **argv) {
 	fd_set master, readfds;
     tuple_t *cur_tuple;
     struct itimerspec timer;
-	uint64_t timer_read, exp;
+    ssize_t timer_read;
+	uint64_t  exp;
 
 	/* prepare data structures for select() */
 	FD_ZERO(&master);
@@ -44,17 +45,18 @@ int main(int argc, char **argv) {
 	fdmax = in_sock;
 
 	while(1) {
-        /* ctrl-c pressed. Clean up and exit */
-        if (do_exit) {
+		readfds = master; // copy it
+		res = select(fdmax+1, &readfds, NULL, NULL, NULL);
+		if (res < 0 && errno != EINTR) {
+            die("select");
+        } else if (do_exit) {
+            /* ctrl-c pressed. Clean up and exit */
             printf("Exiting...\n");
             free(key);
             destroy_ht(ht);
+            printf("exit finished\n");
+            exit(1);
         }
-		printf("Ready\n");
-		readfds = master; // copy it
-		if (select(fdmax+1, &readfds, NULL, NULL, NULL) == -1) {
-			die("select");
-		}
 		for(i = 0; i <= fdmax; i++) {
 			if (FD_ISSET(i, &readfds)) {
                 /* timer set: check timeout values */
@@ -160,7 +162,7 @@ int main(int argc, char **argv) {
 	}
 }
 
-/* does not work with select */
+/* Clean up on ctrl-c */
 void sighandler(int signum) {
     do_exit = 1;
 }

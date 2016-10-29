@@ -23,7 +23,7 @@
 #define DST_PORT 8889
 #define DST_IP "127.0.0.1"
 #define TUPLE_SZ 20
-#define TIME_OUT 20 /* How many second to terminate connection */
+#define TIME_OUT 300 /* How many second to terminate connection */
 
 /* a 4-tuple representing a UDP connection */
 typedef struct tuple {

@@ -1,10 +1,12 @@
 #include "UDPProxy.h"
 
+/* print error message and exit */
 void die(char *msg) {
     perror(msg);
     exit(1);
 }
 
+/* returns fd for socket bound to ip:port */
 int bind_sock(int ip, int port) {
 	int fd, flags = 0x01;
 	struct sockaddr_in addr;
@@ -15,6 +17,9 @@ int bind_sock(int ip, int port) {
 	addr.sin_port = htons(port);
 
 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (fd < 0) {
+        die("Socket error");
+    }
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(int));
 	if(bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
 		die("Bind error");

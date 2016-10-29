@@ -31,9 +31,10 @@ int main(int argc, char **argv) {
 	signal(SIGINT, sighandler);
 
     /* add timer to master set */
+    memset((char *) &timer, 0, sizeof(timer));
     timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-    timer.it_value.tv_sec = 5; //change initial to 4 minutes
-    timer.it_interval.tv_sec = 5; //change repeat to 30 sec
+    timer.it_value.tv_sec = 300; //change initial to 5 minutes
+    timer.it_interval.tv_sec = 30; //change repeat to 30 sec
     timerfd_settime(timer_fd, 0, &timer, NULL);
     FD_SET(timer_fd, &master);
 	

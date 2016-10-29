@@ -16,11 +16,13 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <sys/timerfd.h>
 
 #define BUFF_LEN 1500
 #define DST_PORT 8889
 #define DST_IP "127.0.0.1"
 #define TUPLE_SZ 20
+#define TIME_OUT 20 /* How many second to terminate connection */
 
 /* a 4-tuple representing a UDP connection */
 typedef struct tuple {
@@ -34,6 +36,7 @@ typedef struct tuple {
 typedef struct entry {
     tuple_t *key;
     int value;
+    time_t last_use;
 } entry_t;
 
 /* a hashtable */

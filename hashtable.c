@@ -67,13 +67,16 @@ entry_t *new_entry(tuple_t *key, int value) {
     new_entry->key = malloc(sizeof(tuple_t));
     copy_tuple(key, new_entry->key);
     new_entry->value = value;
+    new_entry->last_use = time(NULL); //start timer
     return new_entry;
 }
 
 /* destroy a key/value pair. */
 void destroy_entry(entry_t *e) {
+    close(e->value); /* close socket */
     free(e->key);
     free(e);
+    e = NULL; /* clear table entry */
 }
 
 /* create a new hashtable */

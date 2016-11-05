@@ -24,6 +24,14 @@
 #define DST_IP "127.0.0.1"
 #define TUPLE_SZ 20
 #define TIME_OUT 300 /* How many second to terminate connection */
+#define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
+#define DEFAULT_RATE 10 /* MB per sec */
+
+/* from http://stackoverflow.com/questions/3437404/min-and-max-in-c */
+#define MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
 /* a 4-tuple representing a UDP connection */
 typedef struct tuple {
@@ -38,6 +46,8 @@ typedef struct entry {
     tuple_t *key;
     int value;
     time_t last_use;
+    double rate;
+    int counter;
 } entry_t;
 
 /* a hashtable */

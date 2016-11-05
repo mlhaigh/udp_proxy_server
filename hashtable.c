@@ -68,6 +68,8 @@ entry_t *new_entry(tuple_t *key, int value) {
     copy_tuple(key, new_entry->key);
     new_entry->value = value;
     new_entry->last_use = time(NULL); //start timer
+    new_entry->rate = DEFAULT_RATE;
+    new_entry->counter = TOKEN_MAX; 
     return new_entry;
 }
 
@@ -205,6 +207,7 @@ int add(tuple_t *key, int value, hashtable_t *ht) {
         }
     }
     ht->table[hash_val] = entry;
+    ht->size++;
     return idx; 
 }
 

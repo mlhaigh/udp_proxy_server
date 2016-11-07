@@ -24,6 +24,10 @@ int main(int argc, char **argv) {
     struct timeval last, now;
     double elapsed;
     entry_t *cur_entry;
+    struct msghdr msg;
+    struct cmsghdr *cmsg;
+    struct iovec msg_iov = {0};
+    struct cmsghdr *cmsg_arr[CMSG_ARR_LEN];
 
 	/* prepare data structures for select() */
 	FD_ZERO(&master);
@@ -48,13 +52,29 @@ int main(int argc, char **argv) {
 	/* keep track of the biggest file descriptor */
 	fdmax = in_sock;
 
+    /* prepare msghdr for receiving */
+    memset((char *) &msg, 0, sizeof(msg));
+    /* set buffer for source address */
+    msg.msg_name = &addr_buff;
+    msg.msg_namelen = INET_ADDRSTRLEN;
+    /* set array for data */
+    msg_iov.iov_base = &buff;
+    msg_iov.iov_len = BUFF_LEN;
+    msg.msg_iov = &msg_iov;
+    msg.msg_iovlen = 1;
+    /* set array for cmsg / original dest */
+    msg.msg_control = cmsg_arr;
+    msg.msg_controllen = CMSG_ARR_LEN;
+
+    /* get current time for first time comparison */
     gettimeofday(&last, NULL);
+
 	while(1) {
-		readfds = master; // copy it
+		readfds = master; // copy select table
 		res = select(fdmax+1, &readfds, NULL, NULL, NULL);
 		if (res < 0 && errno != EINTR) {
             die("select");
-        } else if (res == 0) {
+        } else if (res == 0) { /* nothing ready */
             sleep(.001);
         } else if (do_exit) {
             /* ctrl-c pressed. Clean up and exit */
@@ -84,6 +104,8 @@ int main(int argc, char **argv) {
                 }
             }
         }
+
+        /* deal with active file descriptors */
 		for(i = 0; i <= fdmax; i++) {
 			if (FD_ISSET(i, &readfds)) {
                 recd = 0;
@@ -108,15 +130,21 @@ int main(int argc, char **argv) {
                 }
 				/* iptables redirected packet - may be new or not */
                 else if (i == in_sock) {
-					recd = recvfrom(in_sock, buff, BUFF_LEN, 0, (struct \
-                                sockaddr *)&addr, (socklen_t *)&len);
+                    recd = recvmsg(in_sock, &msg, 0);
+					/* recd = recvfrom(in_sock, buff, BUFF_LEN, 0, (struct \
+                                sockaddr *)&addr, (socklen_t *)&len); */
                     if (recd < 0) {
 						die("Receive error");
 					}
-					inet_ntop(AF_INET, &addr.sin_addr.s_addr, addr_buff, \
+					/* inet_ntop(AF_INET, &addr.sin_addr.s_addr, addr_buff, \
 							INET_ADDRSTRLEN);
 					printf("Received Packet from %s:%d\n", addr_buff, \
-							ntohs(addr.sin_port));
+							ntohs(addr.sin_port)); */
+
+                    printf("received packet\n");
+                    
+                    exit(1);
+
 
 					/* check for socket in table */
 					addr_to_tuple(&addr, &dst, key);

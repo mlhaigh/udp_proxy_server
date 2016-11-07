@@ -26,6 +26,7 @@
 #define TIME_OUT 300 /* How many second to terminate connection */
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
 #define DEFAULT_RATE 10 /* MB per sec */
+#define CMSG_ARR_LEN 64
 
 /* from http://stackoverflow.com/questions/3437404/min-and-max-in-c */
 #define MIN(a,b) \

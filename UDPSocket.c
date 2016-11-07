@@ -21,6 +21,9 @@ int bind_sock(int ip, int port) {
         die("Socket error");
     }
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(int));
+    /* for tproxy */
+    setsockopt(fd, SOL_IP, IP_RECVORIGDSTADDR, &flags, sizeof(int));
+    setsockopt(fd, SOL_IP, IP_TRANSPARENT, &flags, sizeof(int));
 	if(bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
 		die("Bind error");
 	}

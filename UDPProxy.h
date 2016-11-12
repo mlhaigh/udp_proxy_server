@@ -27,6 +27,7 @@
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
 #define DEFAULT_RATE 10 /* MB per sec */
 #define CMSG_ARR_LEN 64
+#define S_BUF_SZ 10000
 
 /* from http://stackoverflow.com/questions/3437404/min-and-max-in-c */
 #define MIN(a,b) \
@@ -49,6 +50,7 @@ typedef struct entry {
     time_t last_use;
     double rate;
     int counter;
+    char *s_buf;
 } entry_t;
 
 /* a hashtable */

@@ -69,7 +69,8 @@ entry_t *new_entry(tuple_t *key, int value) {
     new_entry->value = value;
     new_entry->last_use = time(NULL); //start timer
     new_entry->rate = DEFAULT_RATE;
-    new_entry->counter = TOKEN_MAX; 
+    new_entry->counter = TOKEN_MAX;
+    new_entry->s_buf = malloc(S_BUF_SZ);
     return new_entry;
 }
 
@@ -77,6 +78,7 @@ entry_t *new_entry(tuple_t *key, int value) {
 void destroy_entry(entry_t *e) {
     close(e->value); /* close socket */
     free(e->key);
+    free(e->s_buf);
     free(e);
     e = NULL; /* clear table entry */
 }

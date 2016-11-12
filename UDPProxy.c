@@ -1,6 +1,6 @@
 #include "UDPProxy.h"
 
-#define PORT 8880
+#define PORT 7777
 #define DPORT 8889
 
 tuple_t *key; 
@@ -9,10 +9,10 @@ volatile int do_exit = 0;
 void sighandler(int);
 
 int main(int argc, char **argv) {
-    struct sockaddr_in addr, dst;
+    struct sockaddr_in addr, dst, *cmsg_addr;
     struct in_addr inaddr;
 	int in_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd, res, recd;
-    int len = sizeof(addr);
+    int c_level, c_type, c_len, len = sizeof(addr);
 	char buff[BUFF_LEN];
 	char addr_buff[INET_ADDRSTRLEN];
 	char *DEST_IP = "127.0.0.1";
@@ -28,6 +28,7 @@ int main(int argc, char **argv) {
     struct cmsghdr *cmsg;
     struct iovec msg_iov = {0};
     struct cmsghdr *cmsg_arr[CMSG_ARR_LEN];
+    void **c_data;
 
 	/* prepare data structures for select() */
 	FD_ZERO(&master);
@@ -136,12 +137,23 @@ int main(int argc, char **argv) {
                     if (recd < 0) {
 						die("Receive error");
 					}
-					/* inet_ntop(AF_INET, &addr.sin_addr.s_addr, addr_buff, \
-							INET_ADDRSTRLEN);
-					printf("Received Packet from %s:%d\n", addr_buff, \
-							ntohs(addr.sin_port)); */
 
                     printf("received packet\n");
+
+
+                    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
+                            cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                        if((cmsg->cmsg_level == SOL_IP) && \
+                                (cmsg->cmsg_type == IP_RECVORIGDSTADDR)) {
+                            printf("message found\n");
+                            cmsg_addr = (struct sockaddr_in *)CMSG_DATA(cmsg);
+							inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
+							INET_ADDRSTRLEN);
+					printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
+							ntohs(cmsg_addr->sin_port)); 
+                        }
+                    }
+
                     
                     exit(1);
 

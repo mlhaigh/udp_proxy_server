@@ -1,7 +1,6 @@
 #include "UDPProxy.h"
 
 #define PORT 7777
-#define DPORT 8889
 
 tuple_t *key; 
 hashtable_t *ht;
@@ -9,13 +8,12 @@ volatile int do_exit = 0;
 void sighandler(int);
 
 int main(int argc, char **argv) {
-    struct sockaddr_in addr, dst, *cmsg_addr;
+    struct sockaddr_in addr, src_addr, *cmsg_addr;
     struct in_addr inaddr;
 	int in_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd, res, recd;
-    int c_level, c_type, c_len, len = sizeof(addr);
+    int len = sizeof(addr);
 	char buff[BUFF_LEN];
 	char addr_buff[INET_ADDRSTRLEN];
-	char *DEST_IP = "127.0.0.1";
 	fd_set master, readfds;
     tuple_t *cur_tuple;
     struct itimerspec timer;
@@ -28,7 +26,6 @@ int main(int argc, char **argv) {
     struct cmsghdr *cmsg;
     struct iovec msg_iov = {0};
     struct cmsghdr *cmsg_arr[CMSG_ARR_LEN];
-    void **c_data;
 
 	/* prepare data structures for select() */
 	FD_ZERO(&master);
@@ -56,8 +53,8 @@ int main(int argc, char **argv) {
     /* prepare msghdr for receiving */
     memset((char *) &msg, 0, sizeof(msg));
     /* set buffer for source address */
-    msg.msg_name = &addr_buff;
-    msg.msg_namelen = INET_ADDRSTRLEN;
+    msg.msg_name = &src_addr;
+    msg.msg_namelen = 96;
     /* set array for data */
     msg_iov.iov_base = &buff;
     msg_iov.iov_len = BUFF_LEN;
@@ -132,15 +129,11 @@ int main(int argc, char **argv) {
 				/* iptables redirected packet - may be new or not */
                 else if (i == in_sock) {
                     recd = recvmsg(in_sock, &msg, 0);
-					/* recd = recvfrom(in_sock, buff, BUFF_LEN, 0, (struct \
-                                sockaddr *)&addr, (socklen_t *)&len); */
                     if (recd < 0) {
 						die("Receive error");
 					}
 
-                    printf("received packet\n");
-
-
+                    /* find original destination */
                     for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
                             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
                         if((cmsg->cmsg_level == SOL_IP) && \
@@ -151,15 +144,15 @@ int main(int argc, char **argv) {
 							INET_ADDRSTRLEN);
 					printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
 							ntohs(cmsg_addr->sin_port)); 
+
+							inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
+							INET_ADDRSTRLEN);
+					printf("src:  %s:%d\n", addr_buff, ntohs(src_addr.sin_port)); 
                         }
                     }
 
-                    
-                    exit(1);
-
-
 					/* check for socket in table */
-					addr_to_tuple(&addr, &dst, key);
+					addr_to_tuple(&src_addr, cmsg_addr, key);
 					idx = contains(key, ht);
 					/* new connection: create socket */
 					if (idx == -1) {
@@ -178,11 +171,6 @@ int main(int argc, char **argv) {
 //TODO: COUNTER NEVER CHECKED FOR ZERO SINCE PACKET IS ALREADY BUFFERED
                     }
 					cur_sock = ht->table[idx]->value;
-                    /* prepare address for destination */
-                    memset((char *) &dst, 0, sizeof(dst));
-                    dst.sin_family = AF_INET;
-                    dst.sin_port = htons(DPORT);
-                    inet_aton(DEST_IP, &dst.sin_addr);
 				}
 				/* previously established connection coming in return direction */
 				else {
@@ -200,40 +188,50 @@ int main(int argc, char **argv) {
 
                     /* receive only if token is not full */
                     if (cur_entry->counter > 0) {
-                        recd = recvfrom(i, buff, BUFF_LEN, 0, (struct \
-                                    sockaddr *)&addr, (socklen_t *)&len);
+                        recd = recvmsg(in_sock, &msg, 0);
                         if (recd < 0) {
                             die("Receive error");
                         }
-                        inet_ntop(AF_INET, &addr.sin_addr.s_addr, addr_buff, \
+
+                        /* find original destination */
+                        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
+                                cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                            if((cmsg->cmsg_level == SOL_IP) && \
+                                    (cmsg->cmsg_type == IP_RECVORIGDSTADDR)) {
+                                printf("message found\n");
+                                cmsg_addr = (struct sockaddr_in *)CMSG_DATA(cmsg);
+                                inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
                                 INET_ADDRSTRLEN);
-                        printf("Received Packet from %s:%d\n", addr_buff, \
-                                ntohs(addr.sin_port));
+                        printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
+                                ntohs(cmsg_addr->sin_port)); 
+
+                                inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
+                                INET_ADDRSTRLEN);
+                        printf("src:  %s:%d\n", addr_buff, ntohs(src_addr.sin_port)); 
+                            }
+                        }
+
                         /* update timer and counter*/
-                        ht->table[j]->last_use = time(NULL);
+                        cur_entry->last_use = time(NULL);
                         cur_entry->counter -= recd;
                         cur_tuple = cur_entry->key;
                         inaddr.s_addr = cur_tuple->src_ip;
                         /* convert ip from int to char * */
                         inet_ntop(AF_INET, &inaddr, addr_buff, \
                                 INET_ADDRSTRLEN);
-                        /* prepare address for destination */
-                        memset((char *) &dst, 0, sizeof(dst));
-                        dst.sin_family = AF_INET;
-                        dst.sin_port = cur_tuple->src_port;
-                        inet_aton(addr_buff, &dst.sin_addr);
                     }
 
 				}
                 /* if data was received, send */
                 if (recd > 0) {
                     if (sendto(cur_sock, buff, BUFF_LEN, 0, \
-                                (struct sockaddr *)&dst, len) < 0) {
+                                (struct sockaddr *)cmsg_addr, len) < 0) {
                         die("Send Error");
                     }
-                    inet_ntop(AF_INET, &dst.sin_addr.s_addr, addr_buff, \
+                    inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
                             INET_ADDRSTRLEN);
-                    printf("Sent packet to: %s:%d\n", addr_buff, ntohs(dst.sin_port));
+                    printf("Sent packet to: %s:%d\n", addr_buff, \
+                            ntohs(cmsg_addr->sin_port));
                 }
 			}
 		}

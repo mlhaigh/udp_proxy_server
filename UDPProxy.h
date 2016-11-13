@@ -20,8 +20,8 @@
 #include <errno.h>
 
 #define BUFF_LEN 1500
-#define DST_PORT 8889
-#define DST_IP "127.0.0.1"
+//#define DST_PORT 8889
+//#define DST_IP "127.0.0.1"
 #define TUPLE_SZ 20
 #define TIME_OUT 300 /* How many second to terminate connection */
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */

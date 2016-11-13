@@ -5,17 +5,13 @@
 char addr_buff[INET_ADDRSTRLEN];
 
 /* convert 4-tuple connection to tuple_t struct 
- assumes long is 8 bytes, short 2 
- presently destination address is hard-coded */
+ assumes long is 8 bytes, short 2 */ 
 void addr_to_tuple(struct sockaddr_in *src, struct sockaddr_in *dst, \
         tuple_t *res) {
-    struct in_addr *dst_addr = malloc(sizeof(struct in_addr));
     res->src_ip = src->sin_addr.s_addr;
     res->src_port = src->sin_port;
-    inet_pton(AF_INET, DST_IP, dst_addr);
-    res->dst_ip = dst_addr->s_addr;
-    res->dst_port = htons(DST_PORT);
-    free(dst_addr);
+    res->dst_ip = dst->sin_addr.s_addr;
+    res->dst_port = dst->sin_port;
 }
 
 /* returns 1 if a and b represent the same connection (in either direction) */

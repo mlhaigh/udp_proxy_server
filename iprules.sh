@@ -5,4 +5,3 @@ ip rule add fwmark 1 lookup 100
 ip route add local 0.0.0.0/0 dev lo table 100
 iptables -t mangle -A PREROUTING -p udp -j TPROXY --tproxy-mark 0x1/0x1 --on-port 7777
 
-#iptables -t nat -A OUTPUT -o lo -p udp --dport 8888 -j REDIRECT --to-port 8880

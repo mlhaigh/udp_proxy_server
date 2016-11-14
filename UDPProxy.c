@@ -224,14 +224,14 @@ int main(int argc, char **argv) {
 				}
                 /* if data was received, send */
                 if (recd > 0) {
-                    if (sendto(cur_sock, buff, BUFF_LEN, 0, \
-                                (struct sockaddr *)cmsg_addr, len) < 0) {
+                    if (sendto(cur_sock, buff, 1400, 0, \
+                                (struct sockaddr *)&src_addr, len) < 0) {
                         die("Send Error");
                     }
-                    inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
+                    inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
                             INET_ADDRSTRLEN);
                     printf("Sent packet to: %s:%d\n", addr_buff, \
-                            ntohs(cmsg_addr->sin_port));
+                            ntohs(src_addr.sin_port));
                 }
 			}
 		}

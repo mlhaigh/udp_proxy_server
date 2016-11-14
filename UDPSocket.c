@@ -20,10 +20,16 @@ int bind_sock(int ip, int port) {
     if (fd < 0) {
         die("Socket error");
     }
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(int));
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(int)) < 0) {
+        die("Error setting sockopt SO_REUSEADDR");
+    }
     /* for tproxy */
-    setsockopt(fd, SOL_IP, IP_RECVORIGDSTADDR, &flags, sizeof(int));
-    setsockopt(fd, SOL_IP, IP_TRANSPARENT, &flags, sizeof(int));
+    if (setsockopt(fd, SOL_IP, IP_RECVORIGDSTADDR, &flags, sizeof(int)) < 0) {
+        die("Error setting sockopt IP_RECVORIGDSTADDR");
+    }
+    if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &flags, sizeof(int)) < 0) {
+        die ("Error setting sockopt IP_TRANSPARENT");
+    }
 	if(bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
 		die("Bind error");
 	}

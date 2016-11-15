@@ -58,12 +58,11 @@ int main(int argc, char **argv) {
 
         /* receive reply */
 
-        recd = recvmsg(sock, &msg, 0);
+        /* recd = recvmsg(sock, &msg, 0);
         if (recd < 0) {
             die("Receive error");
         }
 
-        /* find original destination */
         for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
             if((cmsg->cmsg_level == SOL_IP) && \
@@ -79,13 +78,8 @@ int main(int argc, char **argv) {
                 INET_ADDRSTRLEN);
         printf("src:  %s:%d\n", addr_buff, ntohs(src_addr.sin_port)); 
             }
-        }
+        } */
         
-        sleep(500000000);
-
-
-
-
         if (recvfrom(sock, buff, BUFF_LEN, 0, (struct sockaddr *) &recv,\
                   (socklen_t *)&len) < 0) {
             die("Receive error");

@@ -42,11 +42,13 @@ int main(int argc, char **argv) {
     timer.it_interval.tv_sec = 30; //change repeat to 30 sec
     timerfd_settime(timer_fd, 0, &timer, NULL);
     FD_SET(timer_fd, &master);
+    printf("timer set to fd %d\n", timer_fd);
 	
     /* add the listener to the master set */
 	in_sock = bind_sock(INADDR_ANY, PORT);
 	fcntl(in_sock, F_SETFL, O_NONBLOCK);
 	FD_SET(in_sock, &master);
+    printf("listener port set to fd %d\n", in_sock);
 	/* keep track of the biggest file descriptor */
 	fdmax = in_sock;
 
@@ -70,7 +72,6 @@ int main(int argc, char **argv) {
 	while(1) {
 		readfds = master; // copy select table
 		res = select(fdmax+1, &readfds, NULL, NULL, NULL);
-        printf("res: %d\n", res);
 		if (res < 0 && errno != EINTR) {
             die("select");
         } else if (res == 0) { /* nothing ready */
@@ -107,6 +108,7 @@ int main(int argc, char **argv) {
         /* deal with active file descriptors */
 		for(i = 0; i <= fdmax; i++) {
 			if (FD_ISSET(i, &readfds)) {
+                printf("select: %d\n", i);
                 recd = 0;
                 /* timer set: check timeout values */
                 if (i == timer_fd) {
@@ -129,12 +131,14 @@ int main(int argc, char **argv) {
                 }
 				/* iptables redirected packet - may be new or not */
                 else if (i == in_sock) {
+                    printf("in_sock\n");
                     recd = recvmsg(in_sock, &msg, 0);
                     if (recd < 0) {
 						die("Receive error");
 					}
 
                     /* find original destination */
+                    printf("checking for original dst\n");
                     for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
                             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
                         if((cmsg->cmsg_level == SOL_IP) && \

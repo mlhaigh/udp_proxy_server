@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
 	while(1) {
 		readfds = master; // copy select table
 		res = select(fdmax+1, &readfds, NULL, NULL, NULL);
+        printf("res: %d\n", res);
 		if (res < 0 && errno != EINTR) {
             die("select");
         } else if (res == 0) { /* nothing ready */

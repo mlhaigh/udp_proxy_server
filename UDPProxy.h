@@ -19,7 +19,7 @@
 #include <sys/timerfd.h>
 #include <errno.h>
 
-#define BUFF_LEN 1500
+#define BUFF_LEN 4096
 //#define DST_PORT 8889
 //#define DST_IP "127.0.0.1"
 #define TUPLE_SZ 20

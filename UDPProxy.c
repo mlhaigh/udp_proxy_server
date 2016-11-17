@@ -156,12 +156,20 @@ int main(int argc, char **argv) {
                         }
                     }
 
+                    /* filter spotify spam packets */
+                    if ((ntohs(cmsg_addr->sin_port) == 57621) && \
+                            (ntohs(src_addr.sin_port) == 57621)) {
+                        printf("spotify packet\n");
+                        recd = 0; //so we dont try to send
+                        break;
+                    }
+
 					/* check for socket in table */
 					addr_to_tuple(&src_addr, cmsg_addr, key);
 					idx = contains(key, ht);
 					/* new connection: create socket */
 					if (idx == -1) {
-						new_sock = bind_sock(INADDR_ANY, 0);
+						new_sock = bind_sock(INADDR_ANY, 8888);
 						fcntl(new_sock, F_SETFL, O_NONBLOCK);
 						FD_SET(new_sock, &master);
 						fdmax = new_sock;
@@ -185,7 +193,8 @@ int main(int argc, char **argv) {
                         if (ht->table[j]) {
                             if (ht->table[j]->value == cur_sock) {
                                 cur_entry = ht->table[j];
-                                break;
+                                continue;
+                                //goto end
                             }
                         }
                     }
@@ -239,7 +248,7 @@ int main(int argc, char **argv) {
                             ntohs(cmsg_addr->sin_port));
                 }
 			}
-		}
+		} //end select for loop
 	}
 }
 

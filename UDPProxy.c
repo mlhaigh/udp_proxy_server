@@ -1,6 +1,7 @@
 #include "UDPProxy.h"
 
 #define PORT 7777
+#define REV_PORT 8888
 
 tuple_t *key; 
 hashtable_t *ht;
@@ -10,8 +11,8 @@ void sighandler(int);
 int main(int argc, char **argv) {
     struct sockaddr_in addr, src_addr, *cmsg_addr;
     struct in_addr inaddr;
-	int in_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd, res, recd;
-    int len = sizeof(addr);
+	int in_sock, rev_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
+    int res, recd, len = sizeof(addr);
 	char buff[BUFF_LEN];
 	char addr_buff[INET_ADDRSTRLEN];
 	fd_set master, readfds;
@@ -44,13 +45,18 @@ int main(int argc, char **argv) {
     FD_SET(timer_fd, &master);
     printf("timer set to fd %d\n", timer_fd);
 	
-    /* add the listener to the master set */
-	in_sock = bind_sock(INADDR_ANY, PORT);
+    /* add listeners to the master set */
+	in_sock = bind_sock(INADDR_ANY, PORT); //forward direction
 	fcntl(in_sock, F_SETFL, O_NONBLOCK);
 	FD_SET(in_sock, &master);
     printf("listener port set to fd %d\n", in_sock);
+    rev_sock = bind_sock(INADDR_ANY, REV_PORT);
+	fcntl(rev_sock, F_SETFL, O_NONBLOCK);
+	FD_SET(rev_sock, &master);
+    printf("rev listener port set to fd %d\n", rev_sock);
+
 	/* keep track of the biggest file descriptor */
-	fdmax = in_sock;
+	fdmax = rev_sock;
 
     /* prepare msghdr for receiving */
     memset((char *) &msg, 0, sizeof(msg));
@@ -173,7 +179,7 @@ int main(int argc, char **argv) {
 						fcntl(new_sock, F_SETFL, O_NONBLOCK);
 						FD_SET(new_sock, &master);
 						fdmax = new_sock;
-						idx = add(key, new_sock, ht);
+						idx = add(key, new_sock, &src_addr, ht);
 						//printf("New connection added to table at %d\n", idx);
 						//print_table(ht);
 					} 
@@ -194,7 +200,6 @@ int main(int argc, char **argv) {
                             if (ht->table[j]->value == cur_sock) {
                                 cur_entry = ht->table[j];
                                 continue;
-                                //goto end
                             }
                         }
                     }
@@ -208,22 +213,14 @@ int main(int argc, char **argv) {
                         }
 
                         /* find original destination */
-                        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
-                                cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                            if((cmsg->cmsg_level == SOL_IP) && \
-                                    (cmsg->cmsg_type == IP_RECVORIGDSTADDR)) {
-                                printf("message found\n");
-                                cmsg_addr = (struct sockaddr_in *)CMSG_DATA(cmsg);
-                                inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
-                                INET_ADDRSTRLEN);
+                        cmsg_addr = &cur_entry->orig_src;
+                        inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
+                            INET_ADDRSTRLEN);
                         printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
-                                ntohs(cmsg_addr->sin_port)); 
-
-                                inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
-                                INET_ADDRSTRLEN);
+                            ntohs(cmsg_addr->sin_port)); 
+                        inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
+                            INET_ADDRSTRLEN);
                         printf("src:  %s:%d\n", addr_buff, ntohs(src_addr.sin_port)); 
-                            }
-                        }
 
                         /* update timer and counter*/
                         cur_entry->last_use = time(NULL);
@@ -234,6 +231,7 @@ int main(int argc, char **argv) {
                         inet_ntop(AF_INET, &inaddr, addr_buff, \
                                 INET_ADDRSTRLEN);
                     }
+                    //TODO: BUFFER SINCE CANNOT RECEIVE
 
 				}
                 /* if data was received, send */

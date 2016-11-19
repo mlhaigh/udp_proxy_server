@@ -1,6 +1,6 @@
 #include "UDPProxy.h" 
 
-#define INIT_TBL_SZ 37
+#define INIT_TBL_SZ 997
 
 char addr_buff[INET_ADDRSTRLEN];
 
@@ -14,8 +14,24 @@ void addr_to_tuple(struct sockaddr_in *src, struct sockaddr_in *dst, \
     res->dst_port = dst->sin_port;
 }
 
-/* returns 1 if a and b represent the same connection (in either direction) */
+/* returns 1 if a and b represent the same connection (in either direction) 
+ * a is usually being compared with b in the hashtable */
 int compare_tuple(tuple_t *a, tuple_t *b) {
+    printf("comparing tuples.a->srcip:%d a->src_port->%d a->dst_ip:%d \
+            a->dst_port%d b->src_ip:%d b->src_port:%d b->dst_ip:%d \
+            b->dst_port:%d\n", a->src_ip, a->src_port, a->dst_ip, a->dst_port, \
+            b->src_ip, b->src_port, b->dst_ip, b->dst_port);
+    /* coming from rev direction - only  */
+    if (ntohs(a->dst_port) == 8888) {
+        printf("rev direction detected\n");
+        /* a->destination is the proxy so a->dest can be ignored.
+         * use a->source compared to b->destination */
+        if ((a->src_ip == b->dst_ip) && (a->src_port == b->src_port)) {
+            printf("rev match detected\n");
+            return 1;
+        }
+    }
+    /* traditional comparison */
     if (((a->src_ip == b->src_ip) && (a->src_port == b->src_port) && \
         (a->dst_ip == b->dst_ip) && (a->dst_port == b->dst_port)) || \
         ((a->src_ip == b->dst_ip) && (a->src_port == b->dst_port) && \
@@ -58,7 +74,7 @@ void print_table(hashtable_t *ht) {
 }
 
 /* create a new key/value pair */
-entry_t *new_entry(tuple_t *key, int value) {
+entry_t *new_entry(tuple_t *key, int value, struct sockaddr_in *orig_src) {
     entry_t *new_entry = malloc(sizeof(entry_t));
     new_entry->key = malloc(sizeof(tuple_t));
     copy_tuple(key, new_entry->key);
@@ -67,6 +83,9 @@ entry_t *new_entry(tuple_t *key, int value) {
     new_entry->rate = DEFAULT_RATE;
     new_entry->counter = TOKEN_MAX;
     new_entry->s_buf = malloc(S_BUF_SZ);
+    new_entry->orig_src.sin_family = AF_INET;
+    new_entry->orig_src.sin_port = orig_src->sin_port;
+    new_entry->orig_src.sin_addr.s_addr = orig_src->sin_addr.s_addr;
     return new_entry;
 }
 
@@ -182,10 +201,10 @@ void remove_entry(tuple_t *key, hashtable_t *ht) {
 
 /* add an entry to the hash table. Returns the index of the entry 
  * if an entry already exists, returns the index */
-int add(tuple_t *key, int value, hashtable_t *ht) {
+int add(tuple_t *key, int value, struct sockaddr_in *orig_src, hashtable_t *ht) {
     int hash_val = hash(key, ht);
     int idx = hash_val;
-    entry_t *entry = new_entry(key, value);
+    entry_t *entry = new_entry(key, value, orig_src);
     print_entry(entry);
     //location is occupied
     if (ht->table[hash_val]) {

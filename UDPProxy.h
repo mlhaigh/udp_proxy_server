@@ -51,6 +51,7 @@ typedef struct entry {
     double rate;
     int counter;
     char *s_buf;
+    struct sockaddr_in orig_src;
 } entry_t;
 
 /* a hashtable */
@@ -62,7 +63,7 @@ typedef struct hashtable {
 
 void print_entry(entry_t *e);
 void print_table(hashtable_t *ht);
-entry_t *new_entry(tuple_t *key, int value);
+entry_t *new_entry(tuple_t *key, int value, struct sockaddr_in *orig_src);
 void destroy_entry(entry_t *e);
 hashtable_t *new_ht();
 void destroy_ht(hashtable_t *ht);
@@ -70,7 +71,7 @@ uint hash(void *tuple_key, hashtable_t *ht);
 int contains(tuple_t *key, hashtable_t *ht);
 int get(tuple_t *key, hashtable_t *ht);
 void remove_entry(tuple_t *key, hashtable_t *ht);
-int add(tuple_t *key, int value, hashtable_t *ht);
+int add(tuple_t *key, int value, struct sockaddr_in *orig_src, hashtable_t *ht);
 void addr_to_tuple(struct sockaddr_in *src, struct sockaddr_in *dst, \
         tuple_t *res);
 int compare_tuple(tuple_t *a, tuple_t *b);

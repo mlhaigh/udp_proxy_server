@@ -8,11 +8,100 @@ hashtable_t *ht;
 volatile int do_exit = 0;
 void sighandler(int);
 
+/* add packet to buffer. drop packet if buffer is full */
+void buf_pkt (char *data, r_buf_t *r_buf, int len) {
+    /* there is enough room to buffer the new packet */
+    if ((R_BUF_SZ - r_buf->buf_sz) >= len) {
+        /* buffer will wrap around */
+        if ((r_buf->buf_start + len) > R_BUF_SIZE) {
+            /* write to end of buffer */
+            memcpy(r_buf->buf[r_buf->buf_start], data, \
+                    (R_BUF_SZ - r_buf->buf_start));
+            /* write from beginning of buffer */
+            memcpy(r_buf->buf, data[(R_BUF_SZ - r_buf->buf_start)], \
+                    (len - R_BUF_SZ - r_buf->buf_start));
+            /* update buf stats */
+            r_buf->buf_sz += len;
+            r_buf->buf_end = (len - R_BUF_SZ - r_buf->buf_start);
+        }
+        /* no wrap around */
+        else {
+            memcpy(r_buf->buf[buf_start], data, len);
+            /* update buf stats */
+            r_buf->buf_sz += len;
+            r_buf->buf_end += len;
+        }
+    }
+}
+
+/* get buffered packet for connection. Writes to buf. Returns the number of 
+ * bytes retreived */
+int get_bufd_pkt(r_buf_t *r_buf, char *buf, int len) {
+    /* something is buffered */
+    if (r_buf->buf_sz > 0) {
+        _len = (r_buf->buf_sz < len) ? r_buf->buf_sz : len;
+        /* packet wraps around in buffer */
+        if ((R_BUF_SZ - r_buf->buf_start) < _len) {
+            /* write until end of buffer */
+            memcpy(buf, r_buf->buf[r_buf->buf_start], \
+                    (R_BUF_SZ - r_buf->buf_start));
+            /* write from start of buffer */
+            memcpy(buf(R_BUF_SZ - r_buf->buf_start), r_buf->buf, \
+                    (_len - (R_BUF_SZ - r_buf->buf_start)));
+            /* update buf stats */
+            r_buf->buf_sz -= _len;
+            r_buf->buf_start = (_len - (R_BUF_SZ - r_buf->buf_start));
+        }
+        else {
+            /* packet does not wrap around in buffer */
+            memcpy(buf, r_buf->buf[r_buf->buf_start], _len);
+            /* update buf stats */
+            r_buf->buf_sz -= _len;
+            r_buf->buf_end -= _len;
+        }
+        return _len;
+    }
+    return 0;
+}
+
+void generate_token(hashtable_t *ht, char *buf) {
+    if (ht->size > 0) {
+        for (i = 0; i < ht->capacity; i++) {
+            if (ht->table[i]) {
+                ht->table[i]->s_ctr = MIN((ht->table[i]->s_ctr + \
+                            elapsed * ht->table[i]->(rate/2)), (TOKEN_MAX/2));
+                ht->table[i]->d_ctr = MIN((ht->table[i]->s_ctr + \
+                            elapsed * ht->table[i]->(rate/2)), (TOKEN_MAX/2));
+                /* send a packet if a buffered connection became available. 
+                 * send from larger buffer */
+                /* sender buffer is larger */
+                if (ht->table[i]->s_ctr > ht->table[i]->d_ctr) {
+                    if ((ht->table[i]->s_ctr) > 0) && \
+                        (ht->table[i]->s_ctr < \
+                         (elapsed * ht->table[i]->(rate/2))) {
+                            get_bufd_pkt(buf, ht->table[i]->s_buf->buf, \
+                                    PKT_SZ);
+                    }
+                }
+                /* dest buffer is larger */
+                else {
+                    if ((ht->table[i]->d_ctr) > 0) && \
+                        (ht->table[i]->d_ctr < \
+                         (elapsed * ht->table[i]->(rate/2))) {
+                            get_bufd_pkt(buf, ht->table[i]->d_buf->buf, \
+                                    PKT_SZ);
+                    }
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     struct sockaddr_in addr, src_addr, *cmsg_addr;
     struct in_addr inaddr;
 	int in_sock, rev_sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
-    int res, recd, len = sizeof(addr);
+    int res, recd, len = sizeof(addr), sent;
 	char buff[BUFF_LEN];
 	char addr_buff[INET_ADDRSTRLEN];
 	fd_set master, readfds;
@@ -99,17 +188,6 @@ int main(int argc, char **argv) {
         //printf("Microseconds elapsed: %f\n", elapsed);
 
         /* fill buckets */
-        if (ht->size > 0) {
-            for (i = 0; i < ht->capacity; i++) {
-                if (ht->table[i]) {
-                    /* printf("filling bucket at %d. counter: %d. elapsed: %f. \
-                            elapsed*rate: %f\n", i, ht->table[i]->counter, \
-                            elapsed, (elapsed * ht->table[i]->rate)); */
-                    ht->table[i]->counter = MIN((ht->table[i]->counter + \
-                                elapsed * ht->table[i]->rate), TOKEN_MAX);
-                }
-            }
-        }
 
         /* deal with active file descriptors */
 		for(i = 0; i <= fdmax; i++) {

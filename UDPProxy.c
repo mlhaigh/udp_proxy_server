@@ -10,10 +10,152 @@ void sighandler(int);
 
 /* return 1 if original direction, 0 if reverse */
 int check_direction(struct sockaddr_in *src, struct sockaddr_in *dst) {
+    printf("Checking direction\n");
     if (ntohs(dst->sin_port) == PORT) {
+        printf("reverse\n");
         return 0;
     }
+    printf("original\n");
     return 1;
+}
+
+/* add packet to buffer. drop packet if buffer is full */
+void buf_pkt (char *data, r_buf_t *r_buf, int len) {
+    printf("buffering packet\n");
+    /* there is enough room to buffer the new packet */
+    if ((R_BUF_SZ - r_buf->buf_sz) >= len) {
+        printf("room in buffer\n");
+        /* buffer will wrap around */
+        if ((r_buf->buf_start + len) > R_BUF_SZ) {
+            printf("buffer will wrap around\n");
+            /* write to end of buffer */
+            memcpy(&(r_buf->buf[r_buf->buf_start]), data, \
+                    (R_BUF_SZ - r_buf->buf_start));
+            printf("wrote to end\n");
+            /* write from beginning of buffer */
+            memcpy(r_buf->buf, &(data[(R_BUF_SZ - r_buf->buf_start)]), \
+                    (len - R_BUF_SZ - r_buf->buf_start));
+            printf("wrote to beginninh\n");
+            /* update buf stats */
+            r_buf->buf_sz += len;
+            r_buf->buf_end = (len - R_BUF_SZ - r_buf->buf_start);
+            printf("updated stats\n");
+        }
+        /* no wrap around */
+        else {
+            printf("no wrap around\n");
+            memcpy(&(r_buf->buf[r_buf->buf_start]), data, len);
+            printf("wrote packet\n");
+            /* update buf stats */
+            r_buf->buf_sz += len;
+            r_buf->buf_end += len;
+            printf("updated stats\n");
+        }
+    }
+}
+
+/* get buffered packet for connection. Writes to buf. Returns the number of 
+ * bytes retreived */
+int get_bufd_pkt(r_buf_t *r_buf, char *buf, int len) {
+    printf("getting buffered packet\n");
+    int _len;
+    /* something is buffered */
+    if (r_buf->buf_sz > 0) {
+        printf("something is buffered\n");
+        _len = (r_buf->buf_sz < len) ? r_buf->buf_sz : len;
+        /* packet wraps around in buffer */
+        if ((R_BUF_SZ - r_buf->buf_start) < _len) {
+            printf("packet wraps around\n");
+            /* read until end of buffer */
+            memcpy(buf, &(r_buf->buf[r_buf->buf_start]), \
+                    (R_BUF_SZ - r_buf->buf_start));
+            printf("read at end\n");
+            /* read from start of buffer */
+            memcpy(&(buf[R_BUF_SZ - r_buf->buf_start]), r_buf->buf, \
+                    (_len - (R_BUF_SZ - r_buf->buf_start)));
+            printf("read from start\n");
+            /* update buf stats */
+            r_buf->buf_sz -= _len;
+            r_buf->buf_start = (_len - (R_BUF_SZ - r_buf->buf_start));
+            printf("updated stats\n");
+        }
+        else {
+            printf("packet does not wrap around\n");
+            /* packet does not wrap around in buffer */
+            memcpy(buf, &(r_buf->buf[r_buf->buf_start]), _len);
+            printf("read packet\n");
+            /* update buf stats */
+            r_buf->buf_sz -= _len;
+            r_buf->buf_end -= _len;
+            printf("updated stats\n");
+        }
+        return _len;
+    }
+    return 0;
+}
+
+void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock) {
+    printf("generating token\n");
+    printf("elapsed: %f\n", elapsed);
+    if (ht->size > 0) {
+        int i, len = 0;
+        entry_t *cur;
+        struct sockaddr_in *dst;
+        char addr_buff[INET_ADDRSTRLEN];
+        for (i = 0; i < ht->capacity; i++) {
+            if (ht->table[i]) {
+                printf("found entry at %d\n", i);
+                cur = ht->table[i];
+                printf("cur->rate: %f\n", cur->rate);
+                printf("cur->s_ctr + elapsed * ((cur->rate)/2):%f\n", \
+                        cur->s_ctr + elapsed * ((cur->rate)/2));
+                printf("cur->d_ctr + elapsed * ((cur->rate)/2):%f\n", \
+                        cur->d_ctr + elapsed * ((cur->rate)/2));
+                /* increment counters */
+                printf("counters before update: s_ctr:%d. d_ctr:%d\n", \
+                        cur->s_ctr, cur->d_ctr);
+                cur->s_ctr = MIN((cur->s_ctr + elapsed * ((cur->rate)/2)), \
+                        (TOKEN_MAX/2));
+                cur->d_ctr = MIN((cur->d_ctr + elapsed * ((cur->rate)/2)), \
+                        (TOKEN_MAX/2));
+                printf("updated counters. s_ctr:%d. d_ctr:%d\n", cur->s_ctr, \
+                        cur->d_ctr);
+
+                /* send a packet if a buffered connection became available. 
+                * send from larger buffer */
+                if (cur->src_buf.buf_sz > 0 || cur->dst_buf.buf_sz > 0) {
+                    printf("buffered packets are waiting to be sent\n");
+                    /* sender buffer is larger */
+                    if (cur->src_buf.buf_sz > cur->dst_buf.buf_sz) {
+                        printf("sender buffer is larger\n");
+                        printf("new packet ready to be sent from sender\n");
+                        len = get_bufd_pkt(&cur->src_buf, buf, PKT_SZ);
+                        dst = &cur->orig_dst;
+                    }
+                    /* dest buffer is larger */
+                    else {
+                        printf("dest buffer is larger\n");
+                        printf("new packet ready to be sent from dest\n");
+                        len = get_bufd_pkt(&cur->dst_buf, buf, PKT_SZ);
+                        dst = &cur->orig_src;
+                    }
+
+                }
+
+                /* send packet that is now ready */
+                if (len > 0) {
+                    if (sendto(sock, buf, 1400, 0, \
+                            (struct sockaddr *)dst, len) < 0) {
+                        die("Send Error");
+                    }
+                    inet_ntop(AF_INET, &dst->sin_addr.s_addr, addr_buff, \
+                            INET_ADDRSTRLEN);
+                    printf("Sent buffered packet to: %s:%d on fd %d\n", addr_buff, \
+                            ntohs(dst->sin_port), sock);
+                }
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -50,12 +192,11 @@ int main(int argc, char **argv) {
     FD_SET(timer_fd, &master);
     printf("timer set to fd %d\n", timer_fd);
 
-    /* add listeners to the master set */
+    /* add listener socket to the master set */
     sock = bind_sock(INADDR_ANY, PORT); //forward direction
     fcntl(sock, F_SETFL, O_NONBLOCK);
     FD_SET(sock, &master);
     printf("listener port set to fd %d\n", sock);
-
     /* keep track of the biggest file descriptor */
     fdmax = sock;
 
@@ -99,18 +240,7 @@ int main(int argc, char **argv) {
         last = now;
         //printf("Microseconds elapsed: %f\n", elapsed);
 
-        /* fill buckets */
-        if (ht->size > 0) {
-            for (i = 0; i < ht->capacity; i++) {
-                if (ht->table[i]) {
-                    /* printf("filling bucket at %d. counter: %d. elapsed: %f. \
-                       elapsed*rate: %f\n", i, ht->table[i]->counter, \
-                       elapsed, (elapsed * ht->table[i]->rate)); */
-                    ht->table[i]->counter = MIN((ht->table[i]->counter + \
-                                elapsed * ht->table[i]->rate), TOKEN_MAX);
-                }
-            }
-        }
+        generate_token(ht, buff, elapsed, sock);
 
         /* deal with active file descriptors */
         for(i = 0; i <= fdmax; i++) {
@@ -142,6 +272,7 @@ int main(int argc, char **argv) {
                     if (recd < 0) {
                         die("Receive error");
                     }
+                    printf("packet read: len %d\n", recd);
 
                     /* find original destination */
                     printf("checking for original dst\n");
@@ -162,11 +293,10 @@ int main(int argc, char **argv) {
                         }
                     }
 
-                    /* filter spotify spam packets */
-                    if ((ntohs(cmsg_addr->sin_port) == 57621) && \
-                            (ntohs(src_addr.sin_port) == 57621)) {
-                        printf("spotify packet\n");
-                        recd = 0; //so we dont try to send
+                    /* Ignore broadcast due to permission error */
+                    if(((cmsg_addr->sin_addr.s_addr >> 24) & 255) == 255) {
+                        printf("broadcast packet\n");
+                        recd = 0;
                         break;
                     }
 
@@ -178,34 +308,47 @@ int main(int argc, char **argv) {
                     if(dir == 1) {
                         dst_addr = cmsg_addr;
                         /* check for socket in table */
+                        printf("finding original direction in table\n");
                         addr_to_tuple(cmsg_addr, key);
                         idx = contains(key, ht);
+                        printf("contains: %d\n", idx);
                         /* new connection: create entry */
                         if (idx == -1) {
+                            printf("new connection. adding\n");
                             idx = add(key, &src_addr, cmsg_addr, ht);
-                            //printf("New connection added to table at %d\n", idx);
-                            //print_table(ht);
+                            printf("added at %d. printing table\n", idx);
+                            print_table(ht);
                         } 
                         /* conn exists - update timer and decrement counter */
-                        else { 
+                        else {
+                            printf("connection exists\n");
                             ht->table[idx]->last_use = time(NULL);
-                            ht->table[idx]->counter -= recd;
+                            ht->table[idx]->s_ctr -= recd;
+                            printf("updated s_ctr to %d\n", \
+                                    ht->table[idx]->s_ctr);
                             //TODO: COUNTER NEVER CHECKED FOR ZERO SINCE PACKET IS ALREADY BUFFERED
                         }
                     }
 
                     /* previously established connection coming in return direction */
                     else if (dir == 0) {
-                        
+
                         /* check for socket in table */
+                        printf("finding rev direction in table\n");
                         addr_to_tuple(&src_addr, key);
                         idx = contains(key, ht);
+                        printf("contains: %d\n", idx);
                         if (idx < 0) {
                             die("rev direction could not find entry");
                         }
+                        /* get original source addr */
                         dst_addr = &(ht->table[idx]->orig_src);
+                        /* update time and counter */
                         ht->table[idx]->last_use = time(NULL);
-                        ht->table[idx]->counter -= recd;
+                        printf("d_ctr before update:%d\n", ht->table[idx]->d_ctr);
+                        printf("subtracting recd:%d\n", recd);
+                        ht->table[idx]->d_ctr -= recd;
+                        printf("updated d_ctr to %d\n", ht->table[idx]->d_ctr);
                         //TODO: BUFFER SINCE CANNOT RECEIVE
                     }
 

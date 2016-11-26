@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     
     for(i = 0; i < num_pkts; i++) {
         sprintf(buff, "Packet %d\n", i);
-        if (sendto(sock, buff, 1400, 0, (struct sockaddr *)&serv_addr, len) < 0) {
+        if (sendto(sock, buff, PKT_SZ, 0, (struct sockaddr *)&serv_addr, len) < 0) {
             die("Send Error");
         }
         /* print addr info for testing */

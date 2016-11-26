@@ -25,7 +25,8 @@
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
 #define DEFAULT_RATE 10 /* MB per sec */
 #define CMSG_ARR_LEN 64
-#define S_BUF_SZ 10000
+#define R_BUF_SZ 10000
+#define PKT_SZ 1400
 
 /* from http://stackoverflow.com/questions/3437404/min-and-max-in-c */
 #define MIN(a,b) \
@@ -39,13 +40,23 @@ typedef struct tuple {
     unsigned short src_port;
 } tuple_t;
 
+/* ring buffer for storing packets */
+typedef struct r_buf {
+    char *buf;
+    int buf_sz;
+    int buf_start;
+    int buf_end;
+} r_buf_t;
+
 /* an entry in the hashtable */
 typedef struct entry {
     tuple_t *key;
     time_t last_use;
     double rate;
-    int counter;
-    char *s_buf;
+    int s_ctr; //counter for src->dst
+    int d_ctr; //counter for dst->src
+    r_buf_t src_buf;
+    r_buf_t dst_buf;
     struct sockaddr_in orig_src;
     struct sockaddr_in orig_dst;
 } entry_t;

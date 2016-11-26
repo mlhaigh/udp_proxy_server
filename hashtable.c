@@ -56,24 +56,32 @@ entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
         struct sockaddr_in *orig_dst) {
     entry_t *new_entry = malloc(sizeof(entry_t));
     new_entry->key = malloc(sizeof(tuple_t));
+    new_entry->src_buf.buf = calloc(sizeof(char), R_BUF_SZ);
+    new_entry->dst_buf.buf = calloc(sizeof(char), R_BUF_SZ);
     copy_tuple(key, new_entry->key);
     new_entry->last_use = time(NULL); //start timer
     new_entry->rate = DEFAULT_RATE;
-    new_entry->counter = TOKEN_MAX;
-    new_entry->s_buf = malloc(S_BUF_SZ);
+    new_entry->s_ctr = TOKEN_MAX/2;
+    new_entry->d_ctr = TOKEN_MAX/2;
     new_entry->orig_src.sin_family = AF_INET;
     new_entry->orig_src.sin_port = orig_src->sin_port;
     new_entry->orig_src.sin_addr.s_addr = orig_src->sin_addr.s_addr;
     new_entry->orig_dst.sin_family = AF_INET;
     new_entry->orig_dst.sin_port = orig_dst->sin_port;
     new_entry->orig_dst.sin_addr.s_addr = orig_dst->sin_addr.s_addr;
+    new_entry->src_buf.buf_sz = 0;
+    new_entry->src_buf.buf_start = 0;
+    new_entry->src_buf.buf_end = 0;
+    new_entry->dst_buf.buf_sz = 0;
+    new_entry->dst_buf.buf_start = 0;
+    new_entry->dst_buf.buf_end = 0;
     return new_entry;
 }
 
 /* destroy a key/value pair. */
 void destroy_entry(entry_t *e) {
     free(e->key);
-    free(e->s_buf);
+    free(e->src_buf.buf);
     free(e);
     e = NULL; /* clear table entry */
 }

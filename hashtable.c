@@ -16,7 +16,7 @@ void addr_to_tuple(struct sockaddr_in *src, tuple_t *res) {
 /* returns 1 if a and b represent the same connection (in either direction) 
  * a is usually being compared with b in the hashtable */
 int compare_tuple(tuple_t *a, tuple_t *b) {
-    printf("comparing tuples.a->srcip:%lu a->src_port->%d b->src_ip:%lu b->src_port:%d\n", a->src_ip, a->src_port, b->src_ip, b->src_port);
+//    printf("comparing tuples.a->srcip:%lu a->src_port->%d b->src_ip:%lu b->src_port:%d\n", a->src_ip, a->src_port, b->src_ip, b->src_port);
     if ((a->src_ip == b->src_ip) && (a->src_port == b->src_port)) {
         return 1;
     }
@@ -56,8 +56,6 @@ entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
         struct sockaddr_in *orig_dst) {
     entry_t *new_entry = malloc(sizeof(entry_t));
     new_entry->key = malloc(sizeof(tuple_t));
-    new_entry->src_buf.buf = calloc(sizeof(char), R_BUF_SZ);
-    new_entry->dst_buf.buf = calloc(sizeof(char), R_BUF_SZ);
     copy_tuple(key, new_entry->key);
     new_entry->last_use = time(NULL); //start timer
     new_entry->rate = DEFAULT_RATE;
@@ -69,19 +67,12 @@ entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
     new_entry->orig_dst.sin_family = AF_INET;
     new_entry->orig_dst.sin_port = orig_dst->sin_port;
     new_entry->orig_dst.sin_addr.s_addr = orig_dst->sin_addr.s_addr;
-    new_entry->src_buf.buf_sz = 0;
-    new_entry->src_buf.buf_start = 0;
-    new_entry->src_buf.buf_end = 0;
-    new_entry->dst_buf.buf_sz = 0;
-    new_entry->dst_buf.buf_start = 0;
-    new_entry->dst_buf.buf_end = 0;
     return new_entry;
 }
 
 /* destroy a key/value pair. */
 void destroy_entry(entry_t *e) {
     free(e->key);
-    free(e->src_buf.buf);
     free(e);
     e = NULL; /* clear table entry */
 }

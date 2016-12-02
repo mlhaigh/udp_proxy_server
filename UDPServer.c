@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
         printf("Received Packet from %s:%d\n", addr_buff, ntohs(client.sin_port));
         
         /* send response packet */
-        if (sendto(sock, buff, BUFF_LEN, 0, (struct sockaddr *)&client, len) \
+        if (sendto(sock, buff, PKT_SZ, 0, (struct sockaddr *)&client, len) \
                 < 0) {
             die("Send Error");
         }

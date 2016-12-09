@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
                             }
                             /* counter < 0 */
                             else {
-                                recd = 0;
+                            //    recd = 0;
                             }
                         }
                     }
@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
                         }
                         /* ctr < 0 */
                         else {
-                            recd = 0;
+                        //    recd = 0;
                         }
                     }
                 }

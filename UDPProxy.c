@@ -46,10 +46,20 @@ void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock, FILE *
     }
 }
 
+int add_sock(int port, fd_set *master, int *fdmax) {
+    /* add listener socket to the master set */
+    int sock = bind_sock(INADDR_ANY, port); //forward direction
+    fcntl(sock, F_SETFL, O_NONBLOCK);
+    FD_SET(sock, master);
+    /* keep track of the biggest file descriptor */
+    *fdmax = sock;
+    return sock;
+}
+
 int main(int argc, char **argv) {
     struct sockaddr_in addr, src_addr, *cmsg_addr, *dst_addr;
-    int sock, idx, fdmax, i, j, timer_fd; 
-    int res, recd, dir, len = sizeof(addr);
+    int sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
+    int res, recd, len = sizeof(addr);
     char buff[BUFF_LEN];
     //char addr_buff[INET_ADDRSTRLEN];
     fd_set master, readfds;
@@ -92,12 +102,7 @@ int main(int argc, char **argv) {
     timerfd_settime(timer_fd, 0, &timer, NULL);
     FD_SET(timer_fd, &master);
 
-    /* add listener socket to the master set */
-    sock = bind_sock(INADDR_ANY, port); //forward direction
-    fcntl(sock, F_SETFL, O_NONBLOCK);
-    FD_SET(sock, &master);
-    /* keep track of the biggest file descriptor */
-    fdmax = sock;
+    sock = add_sock(port, &master, &fdmax);
 
     /* prepare msghdr for receiving */
     memset((char *) &msg, 0, sizeof(msg));
@@ -182,66 +187,66 @@ int main(int argc, char **argv) {
                         break;
                     }
 
-                    /* determine if this is original or reverse direction 
-                     * dir == 1 if original, 0 if reverse */
-                    dir = check_direction(&src_addr, cmsg_addr, port);
-
-                    /* original direction */
-                    if(dir == 1) {
-                        dst_addr = cmsg_addr;
-                        /* check for socket in table */
-                        addr_to_tuple(cmsg_addr, key);
-                        idx = contains(key, ht);
-                        /* new connection: create entry */
-                        if (idx == -1) {
-                            idx = add(key, &src_addr, cmsg_addr, ht);
-                        } 
-                        /* conn exists - update timer and decrement counter */
-                        else {
-                            cur_entry  = ht->table[idx];
-                            cur_entry->last_use = time(NULL);
-                            /* only send if ctr > 0 */
-                            print_log(log, "orig dir prev s_ctr:%d\n", cur_entry->s_ctr);
-                            if (cur_entry->s_ctr >= 0) {
-                                cur_entry->s_ctr -= recd;
-                            }
-                            /* counter < 0 */
-                            else {
-                                recd = 0;
-                            }
-                            print_log(log, "orig dir after s_ctr:%d\n", cur_entry->s_ctr);
-                        }
-                    }
-
-                    /* previously established connection coming in return direction */
-                    else if (dir == 0) {
-
-                        /* check for socket in table */
-                        addr_to_tuple(&src_addr, key);
-                        idx = contains(key, ht);
-                        if (idx < 0) {
-                            die("rev direction could not find entry");
-                        }
+                    dst_addr = cmsg_addr;
+                    /* check for socket in table */
+                    addr_to_tuple(cmsg_addr, key);
+                    idx = contains(key, ht);
+                    /* new connection: create entry */
+                    if (idx == -1) {
+                        printf("new conection\n");
+                        new_sock = add_sock(0, &master, &fdmax);
+                        cur_sock = new_sock;
+                        idx = add(key, &src_addr, cmsg_addr, new_sock, ht);
+                    } 
+                    /* conn exists - update timer and decrement counter */
+                    else {
+                        printf("conn exists\n");
                         cur_entry = ht->table[idx];
-                        /* get original source addr */
-                        dst_addr = &(cur_entry->orig_src);
-                        /* update time and counter */
+                        cur_sock = cur_entry->sock;
                         cur_entry->last_use = time(NULL);
                         /* only send if ctr > 0 */
-                        print_log(log, "rev dir prev d_ctr:%d\n", cur_entry->d_ctr);
-                        if (cur_entry->d_ctr > 0) {
-                            ht->table[idx]->d_ctr -= recd;
+                        print_log(log, "orig dir prev s_ctr:%d\n", cur_entry->s_ctr);
+                        if (cur_entry->s_ctr >= 0) {
+                            cur_entry->s_ctr -= recd;
                         }
-                        /* ctr < 0 */
+                        /* counter < 0 */
                         else {
                             recd = 0;
                         }
-                        print_log(log, "rev dir after d_ctr:%d\n", cur_entry->d_ctr);
+                        print_log(log, "orig dir after s_ctr:%d\n", cur_entry->s_ctr);
                     }
-                }
+                } //end in_sock
+
+                else  { //another socket = rev direction already established
+                    /* check for socket in table */
+                    printf("rev direction already exists\n");
+                    addr_to_tuple(&src_addr, key);
+                    idx = contains(key, ht);
+                    if (idx < 0) {
+                        die("rev direction could not find entry");
+                    }
+                    cur_entry = ht->table[idx];
+                    cur_sock = cur_entry->sock;
+                    /* get original source addr */
+                    dst_addr = &(cur_entry->orig_src);
+                    /* update time and counter */
+                    cur_entry->last_use = time(NULL);
+                    /* only send if ctr > 0 */
+                    print_log(log, "rev dir prev d_ctr:%d\n", cur_entry->d_ctr);
+                    if (cur_entry->d_ctr > 0) {
+                        ht->table[idx]->d_ctr -= recd;
+                    }
+                    /* ctr < 0 */
+                    else {
+                        recd = 0;
+                    }
+                    print_log(log, "rev dir after d_ctr:%d\n", cur_entry->d_ctr);
+                } //end rev direction sock
+
                 /* if data was received, send */
                 if (recd > 0) {
-                    if (sendto(sock, buff, 1400, 0, \
+                    printf("sending\n");
+                    if (sendto(cur_sock, buff, 1400, 0, \
                                 (struct sockaddr *)dst_addr, len) < 0) {
                         die("Send Error");
                     }
@@ -250,13 +255,13 @@ int main(int argc, char **argv) {
                 else {
                     print_log(log, "no packet sent");
                 }
-            }
-        } //end select for loop
-    }
-}
+            } //end select case?
+        } //end select for loop?
+    } //end while(1)?
+}//end main
 
-/* Clean up on ctrl-c */
-void sighandler(int signum) {
-    do_exit = 1;
-}
+    /* Clean up on ctrl-c */
+    void sighandler(int signum) {
+        do_exit = 1;
+    }
 

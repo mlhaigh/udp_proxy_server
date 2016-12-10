@@ -55,6 +55,7 @@ typedef struct entry {
     int d_ctr; //counter for dst->src
     struct sockaddr_in orig_src;
     struct sockaddr_in orig_dst;
+    int sock;
 } entry_t;
 
 /* a hashtable */
@@ -67,7 +68,7 @@ typedef struct hashtable {
 void print_entry(entry_t *e);
 void print_table(hashtable_t *ht);
 entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst);
+        struct sockaddr_in *orig_dst, int sock);
 void destroy_entry(entry_t *e);
 hashtable_t *new_ht();
 void destroy_ht(hashtable_t *ht);
@@ -76,7 +77,7 @@ int contains(tuple_t *key, hashtable_t *ht);
 entry_t *get(tuple_t *key, hashtable_t *ht);
 void remove_entry(tuple_t *key, hashtable_t *ht);
 int add(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst, hashtable_t *ht);
+        struct sockaddr_in *orig_dst, int sock, hashtable_t *ht);
 void addr_to_tuple(struct sockaddr_in *src, tuple_t *res);
 int compare_tuple(tuple_t *a, tuple_t *b);
 void copy_tuple(tuple_t *src, tuple_t *dst);

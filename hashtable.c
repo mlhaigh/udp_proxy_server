@@ -53,7 +53,7 @@ void print_table(hashtable_t *ht) {
 
 /* create a new key/value pair */
 entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst) {
+        struct sockaddr_in *orig_dst, int sock) {
     entry_t *new_entry = malloc(sizeof(entry_t));
     new_entry->key = malloc(sizeof(tuple_t));
     copy_tuple(key, new_entry->key);
@@ -67,12 +67,14 @@ entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
     new_entry->orig_dst.sin_family = AF_INET;
     new_entry->orig_dst.sin_port = orig_dst->sin_port;
     new_entry->orig_dst.sin_addr.s_addr = orig_dst->sin_addr.s_addr;
+    new_entry->sock = sock;
     return new_entry;
 }
 
 /* destroy a key/value pair. */
 void destroy_entry(entry_t *e) {
     free(e->key);
+    close(e->sock);
     free(e);
     e = NULL; /* clear table entry */
 }
@@ -181,10 +183,10 @@ void remove_entry(tuple_t *key, hashtable_t *ht) {
 /* add an entry to the hash table. Returns the index of the entry 
  * if an entry already exists, returns the index */
 int add(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst, hashtable_t *ht) {
+        struct sockaddr_in *orig_dst, int sock, hashtable_t *ht) {
     int hash_val = hash(key, ht);
     int idx = hash_val;
-    entry_t *entry = new_entry(key, orig_src, orig_dst);
+    entry_t *entry = new_entry(key, orig_src, orig_dst, sock);
     print_entry(entry);
     //location is occupied
     if (ht->table[hash_val]) {

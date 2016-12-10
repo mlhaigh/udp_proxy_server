@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
     int sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
     int res, recd, len = sizeof(addr);
     char buff[BUFF_LEN];
-    //char addr_buff[INET_ADDRSTRLEN];
+    char addr_buff[INET_ADDRSTRLEN];
     fd_set master, readfds;
     struct itimerspec timer;
     ssize_t timer_read;
@@ -178,6 +178,14 @@ int main(int argc, char **argv) {
                         if((cmsg->cmsg_level == SOL_IP) && \
                                 (cmsg->cmsg_type == IP_RECVORIGDSTADDR)) {
                             cmsg_addr = (struct sockaddr_in *)CMSG_DATA(cmsg);
+                            /*inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
+                                    INET_ADDRSTRLEN);
+                             printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
+                                    ntohs(cmsg_addr->sin_port)); 
+                            inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
+                                    INET_ADDRSTRLEN);
+                            printf("src:  %s:%d\n", addr_buff, \
+                            ntohs(src_addr.sin_port));*/ 
                         }
                     }
 
@@ -193,14 +201,12 @@ int main(int argc, char **argv) {
                     idx = contains(key, ht);
                     /* new connection: create entry */
                     if (idx == -1) {
-                        printf("new conection\n");
                         new_sock = add_sock(0, &master, &fdmax);
                         cur_sock = new_sock;
                         idx = add(key, &src_addr, cmsg_addr, new_sock, ht);
                     } 
                     /* conn exists - update timer and decrement counter */
                     else {
-                        printf("conn exists\n");
                         cur_entry = ht->table[idx];
                         cur_sock = cur_entry->sock;
                         cur_entry->last_use = time(NULL);
@@ -218,8 +224,29 @@ int main(int argc, char **argv) {
                 } //end in_sock
 
                 else  { //another socket = rev direction already established
+                    recd = recvmsg(i, &msg, 0);
+                    if (recd < 0) {
+                        die("Receive error");
+                    }
+
+                    /* find original destination */
+                    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; \
+                            cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                        if((cmsg->cmsg_level == SOL_IP) && \
+                                (cmsg->cmsg_type == IP_RECVORIGDSTADDR)) {
+                            cmsg_addr = (struct sockaddr_in *)CMSG_DATA(cmsg);
+                            /* inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
+                                    INET_ADDRSTRLEN);
+                            printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
+                                    ntohs(cmsg_addr->sin_port)); 
+                            inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
+                                    INET_ADDRSTRLEN);
+                            printf("src:  %s:%d\n", addr_buff, \
+                            ntohs(src_addr.sin_port)); */
+                        }
+                    }
+
                     /* check for socket in table */
-                    printf("rev direction already exists\n");
                     addr_to_tuple(&src_addr, key);
                     idx = contains(key, ht);
                     if (idx < 0) {
@@ -245,11 +272,14 @@ int main(int argc, char **argv) {
 
                 /* if data was received, send */
                 if (recd > 0) {
-                    printf("sending\n");
                     if (sendto(cur_sock, buff, 1400, 0, \
                                 (struct sockaddr *)dst_addr, len) < 0) {
                         die("Send Error");
                     }
+                    /* inet_ntop(AF_INET, &dst_addr->sin_addr.s_addr, addr_buff, \
+                            INET_ADDRSTRLEN);
+                    printf("sent packet to:  %s:%d\n", addr_buff, \
+                            ntohs(dst_addr->sin_port)); */
                     print_log(log, "sent packet. len:%d\n", recd);
                 }
                 else {

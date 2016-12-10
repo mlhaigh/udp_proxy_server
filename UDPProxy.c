@@ -34,7 +34,7 @@ void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock, FILE *
             if (ht->table[i]) {
                 cur = ht->table[i];
                 /* increment counters */
-                print_log(log, "generate: s_ctr:%d d_ctr:%d\n. elapsed:%f", \
+                print_log(log, "generate: s_ctr:%d d_ctr:%d elapsed:%f\n", \
                         cur->s_ctr, cur->d_ctr, elapsed);
                 cur->s_ctr = MIN((TOKEN_MAX/2), \
                         (cur->s_ctr + ((elapsed * cur->rate) / 1000)));
@@ -201,15 +201,15 @@ int main(int argc, char **argv) {
                             cur_entry  = ht->table[idx];
                             cur_entry->last_use = time(NULL);
                             /* only send if ctr > 0 */
-                            print_log(log, "sending s_ctr:%d\n", cur_entry->s_ctr);
+                            print_log(log, "orig dir prev s_ctr:%d\n", cur_entry->s_ctr);
                             if (cur_entry->s_ctr >= 0) {
                                 cur_entry->s_ctr -= recd;
                             }
                             /* counter < 0 */
                             else {
-                            //    recd = 0;
+                                recd = 0;
                             }
-                            print_log(log, "sent s_ctr:%d\n", cur_entry->s_ctr);
+                            print_log(log, "orig dir after s_ctr:%d\n", cur_entry->s_ctr);
                         }
                     }
 
@@ -228,15 +228,15 @@ int main(int argc, char **argv) {
                         /* update time and counter */
                         cur_entry->last_use = time(NULL);
                         /* only send if ctr > 0 */
-                        print_log(log, "sending d_ctr:%d\n", cur_entry->d_ctr);
+                        print_log(log, "rev dir prev d_ctr:%d\n", cur_entry->d_ctr);
                         if (cur_entry->d_ctr > 0) {
                             ht->table[idx]->d_ctr -= recd;
                         }
                         /* ctr < 0 */
                         else {
-                        //    recd = 0;
+                            recd = 0;
                         }
-                        print_log(log, "sent d_ctr:%d\n", cur_entry->d_ctr);
+                        print_log(log, "rev dir after d_ctr:%d\n", cur_entry->d_ctr);
                     }
                 }
                 /* if data was received, send */
@@ -245,6 +245,10 @@ int main(int argc, char **argv) {
                                 (struct sockaddr *)dst_addr, len) < 0) {
                         die("Send Error");
                     }
+                    print_log(log, "sent packet. len:%d\n", recd);
+                }
+                else {
+                    print_log(log, "no packet sent");
                 }
             }
         } //end select for loop

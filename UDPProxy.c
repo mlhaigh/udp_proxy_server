@@ -1,16 +1,13 @@
 #include "UDPProxy.h"
 
-#define PORT 7777
-#define REV_PORT 8888
-
 tuple_t *key; 
 hashtable_t *ht;
 volatile int do_exit = 0;
 void sighandler(int);
 
 /* return 1 if original direction, 0 if reverse */
-int check_direction(struct sockaddr_in *src, struct sockaddr_in *dst) {
-    if (ntohs(dst->sin_port) == PORT) {
+int check_direction(struct sockaddr_in *src, struct sockaddr_in *dst, int port) {
+    if (ntohs(dst->sin_port) == port) {
         return 0;
     }
     return 1;
@@ -29,7 +26,7 @@ double get_diff(struct timespec *last) {
 }
 
 /* elapsed = nanoseconds */
-void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock) {
+void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock, FILE *log) {
     if (ht->size > 0) {
         int i;
         entry_t *cur;
@@ -37,10 +34,13 @@ void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock) {
             if (ht->table[i]) {
                 cur = ht->table[i];
                 /* increment counters */
+                print_log(log, "generate: s_ctr:%d d_ctr:%d\n. elapsed:%f", \
+                        cur->s_ctr, cur->d_ctr, elapsed);
                 cur->s_ctr = MIN((TOKEN_MAX/2), \
                         (cur->s_ctr + ((elapsed * cur->rate) / 1000)));
                 cur->d_ctr = MIN((TOKEN_MAX/2), \
                         (cur->d_ctr + ((elapsed * cur->rate) / 1000)));
+                print_log(log, "updated s_ctr:%d d_ctr:%d\n", cur->s_ctr, cur->d_ctr);
             }
         }
     }
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     int sock, idx, fdmax, i, j, timer_fd; 
     int res, recd, dir, len = sizeof(addr);
     char buff[BUFF_LEN];
-    char addr_buff[INET_ADDRSTRLEN];
+    //char addr_buff[INET_ADDRSTRLEN];
     fd_set master, readfds;
     struct itimerspec timer;
     ssize_t timer_read;
@@ -62,6 +62,19 @@ int main(int argc, char **argv) {
     struct iovec msg_iov = {0};
     struct cmsghdr *cmsg_arr[CMSG_ARR_LEN];
     entry_t *cur_entry;
+    FILE *log;
+    unsigned short port;
+
+    if(argc < 3) {
+        die("Usage: argv[0] <port> <log_file>");
+    }
+
+    log = fopen(argv[2], "w");
+    if (log == 0) {
+        die("error opening file");
+    }
+
+    port = atoi(argv[1]);
 
     /* prepare data structures for select() */
     FD_ZERO(&master);
@@ -80,7 +93,7 @@ int main(int argc, char **argv) {
     FD_SET(timer_fd, &master);
 
     /* add listener socket to the master set */
-    sock = bind_sock(INADDR_ANY, PORT); //forward direction
+    sock = bind_sock(INADDR_ANY, port); //forward direction
     fcntl(sock, F_SETFL, O_NONBLOCK);
     FD_SET(sock, &master);
     /* keep track of the biggest file descriptor */
@@ -116,11 +129,14 @@ int main(int argc, char **argv) {
             printf("Exiting...\n");
             free(key);
             destroy_ht(ht);
+            if (fclose(log) != 0) {
+                die("error closing log file");
+            }
             printf("exit finished\n");
             exit(1);
         }
 
-        generate_token(ht, buff, get_diff(&last), sock);
+        generate_token(ht, buff, get_diff(&last), sock, log);
 
         /* deal with active file descriptors */
         for(i = 0; i <= fdmax; i++) {
@@ -157,14 +173,6 @@ int main(int argc, char **argv) {
                         if((cmsg->cmsg_level == SOL_IP) && \
                                 (cmsg->cmsg_type == IP_RECVORIGDSTADDR)) {
                             cmsg_addr = (struct sockaddr_in *)CMSG_DATA(cmsg);
-                            //inet_ntop(AF_INET, &cmsg_addr->sin_addr.s_addr, addr_buff, \
-                                    INET_ADDRSTRLEN);
-                            //printf("Received Packet. Orig Dest:  %s:%d\n", addr_buff, \
-                            //        ntohs(cmsg_addr->sin_port)); 
-
-                            //inet_ntop(AF_INET, &src_addr.sin_addr.s_addr, addr_buff, \
-                            //        INET_ADDRSTRLEN);
-                            //printf("src:  %s:%d\n", addr_buff, ntohs(src_addr.sin_port)); 
                         }
                     }
 
@@ -176,7 +184,7 @@ int main(int argc, char **argv) {
 
                     /* determine if this is original or reverse direction 
                      * dir == 1 if original, 0 if reverse */
-                    dir = check_direction(&src_addr, cmsg_addr);
+                    dir = check_direction(&src_addr, cmsg_addr, port);
 
                     /* original direction */
                     if(dir == 1) {
@@ -193,6 +201,7 @@ int main(int argc, char **argv) {
                             cur_entry  = ht->table[idx];
                             cur_entry->last_use = time(NULL);
                             /* only send if ctr > 0 */
+                            print_log(log, "sending s_ctr:%d\n", cur_entry->s_ctr);
                             if (cur_entry->s_ctr >= 0) {
                                 cur_entry->s_ctr -= recd;
                             }
@@ -200,6 +209,7 @@ int main(int argc, char **argv) {
                             else {
                             //    recd = 0;
                             }
+                            print_log(log, "sent s_ctr:%d\n", cur_entry->s_ctr);
                         }
                     }
 
@@ -218,6 +228,7 @@ int main(int argc, char **argv) {
                         /* update time and counter */
                         cur_entry->last_use = time(NULL);
                         /* only send if ctr > 0 */
+                        print_log(log, "sending d_ctr:%d\n", cur_entry->d_ctr);
                         if (cur_entry->d_ctr > 0) {
                             ht->table[idx]->d_ctr -= recd;
                         }
@@ -225,6 +236,7 @@ int main(int argc, char **argv) {
                         else {
                         //    recd = 0;
                         }
+                        print_log(log, "sent d_ctr:%d\n", cur_entry->d_ctr);
                     }
                 }
                 /* if data was received, send */
@@ -233,10 +245,6 @@ int main(int argc, char **argv) {
                                 (struct sockaddr *)dst_addr, len) < 0) {
                         die("Send Error");
                     }
-                  //  inet_ntop(AF_INET, &dst_addr->sin_addr.s_addr, addr_buff, \
-                            INET_ADDRSTRLEN);
-                  //  printf("Sent packet to: %s:%d on fd %d\n", addr_buff, \
-                  //          ntohs(dst_addr->sin_port), sock);
                 }
             }
         } //end select for loop

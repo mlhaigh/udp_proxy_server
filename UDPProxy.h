@@ -23,7 +23,7 @@
 #define TUPLE_SZ 10
 #define TIME_OUT 300 /* How many second to terminate connection */
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
-#define DEFAULT_RATE 1 /* MB per sec */
+#define DEFAULT_RATE 10000 /* MB per sec */
 #define CMSG_ARR_LEN 64
 #define PKT_SZ 1400
 
@@ -32,6 +32,13 @@
    ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
+
+#define PRINT_LOG
+#ifdef PRINT_LOG
+    #define print_log(...) fprintf(__VA_ARGS__)
+#else
+    #define print_log(...)
+#endif
 
 /* a tuple representing a UDP connection */
 typedef struct tuple {

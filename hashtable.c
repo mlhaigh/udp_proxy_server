@@ -59,6 +59,8 @@ entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
     copy_tuple(key, new_entry->key);
     new_entry->last_use = time(NULL); //start timer
     new_entry->rate = DEFAULT_RATE;
+    /* rate control by port */
+    new_entry->rate = ntohs(orig_dst->sin_port) - 2000;
     new_entry->s_ctr = TOKEN_MAX/2;
     new_entry->d_ctr = TOKEN_MAX/2;
     new_entry->orig_src.sin_family = AF_INET;

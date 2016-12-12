@@ -1,2 +1,51 @@
-UDP Proxy Server in C
+Columbia University / Matthew Haigh
+UDP Proxy
+Written in collaboration with Kevin Yang 
+For Professor Dan Rubenstein and Professor Vishal Misra
+For the Wifi QOS Research Project
+
+Purpose: Proxy for UDP packets for rate control
+
+To compile type make
+
+Configuration file (currently proxy.conf) formatted as follows:
+    each line contains an entry
+    each line consists of <ip_address> <port> <rate> delimited by one space each
+Enter each host:port and the rate in the configuration file
+Default rates are defined in UDPProxy.h ("#define DEFAULT_RATE <rate>")
+
+Configure iptables rules use iprules.sh
+Modify/add entries for tproxy to intercept packets from the applicable source IPs
+iptables can be flushed with ./clear_iprules.sh
+
+Run as follows:
+./UDPProxy <port> <log_file> <config_file>
+
+Proxy will read the rate specifications from the <config_file>.
+If logging is turned on, log statements will be written to <log>
+    Logging is turned on if UDPProxy.h contains the statement: 
+        "#define PRINT_LOG"
+
+UDPClient and UDPServer are included for testing, but iperf works best
+To run test: 
+    1. edit proxy.conf to match your client system
+        <client_ip> 2001 1
+        <client_ip> 2010 10
+    2. edit iprules.sh to match your system
+        "iptables -t mangle -A PREROUTING -p udp -s <client_ip> -j TPROXY \
+            --tproxy-mark 0x1/0x1 --on-port 7777"
+        "sudo ./iprules.sh"
+    3. start iperf servers on the same machine as the proxy
+        "iperf -su -i 1 -p 2001 &"
+        "iperf -su -i 1 -p 2010"
+    4. start proxy on server machine
+        "sudo ./UDPProxy 7777 log proxy.conf"
+    5. start iperf clients on the client machine
+        "iperf -c <server_ip> -u -t 100 -i 1 -b 1000MB -p 2001> /tmp/log1 &"
+        "iperf -c <server_ip> -u -t 100 -i 1 -b 1000MB > -p 2010 /tmp/log2 "\
+    6. confirm that the rates displayed by iperf match the rates in the config
+        file for the corresponding ports
+    7. remember to close background processes
+        "pkill iperf"
+
 

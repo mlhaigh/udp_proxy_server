@@ -23,7 +23,7 @@
 #define TUPLE_SZ 10
 #define TIME_OUT 300 /* How many second to terminate connection */
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
-#define DEFAULT_RATE 1 /* MB per sec */
+#define DEFAULT_RATE 100 /* MB per sec */
 #define CMSG_ARR_LEN 64
 #define PKT_SZ 1400
 #define CONFIG_MAX 64

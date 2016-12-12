@@ -93,6 +93,30 @@ int config_get_rate(tuple_t *tuple, config_t *config) {
     return 0;
 }
 
+/* for reverse direction new connection. Check if the hash returns the correct
+ * socket. If not, check the hash table for an entry with a matching socket */
+entry_t *get_entry_rev(int sock, struct sockaddr_in *src_addr, hashtable_t *ht) {
+    int i;
+    addr_to_tuple(src_addr, key);
+    i = contains(key, ht);
+    if (i < 0) {
+        die("error getting reverse entry");
+    }
+    if (ht->table[i]->sock == sock) {
+        printf("matched original\n");
+        return ht->table[i];
+    }
+    printf("did not match original\n");
+    for (i = 0; i < ht->capacity; i++) {
+        if (ht->table[i]->sock == sock) {
+            printf("found sock match\n");
+            return ht->table[i];
+        }
+    }
+    printf("no match found\n");
+    return 0;
+}
+
 int main(int argc, char **argv) {
     struct sockaddr_in addr, src_addr, *cmsg_addr, *dst_addr;
     int sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
@@ -286,13 +310,7 @@ int main(int argc, char **argv) {
                         }
                     }
 
-                    /* check for socket in table */
-                    addr_to_tuple(&src_addr, key);
-                    idx = contains(key, ht);
-                    if (idx < 0) {
-                        die("rev direction could not find entry");
-                    }
-                    cur_entry = ht->table[idx];
+                    cur_entry = get_entry_rev(i, &src_addr, ht);
                     cur_sock = cur_entry->sock;
                     /* get original source addr */
                     dst_addr = &(cur_entry->orig_src);
@@ -300,7 +318,7 @@ int main(int argc, char **argv) {
                     cur_entry->last_use = time(NULL);
                     /* only send if ctr > 0 */
                     if (cur_entry->d_ctr > 0) {
-                        ht->table[idx]->d_ctr -= recd;
+                        cur_entry->d_ctr -= recd;
                     }
                     /* ctr < 0 */
                     else {

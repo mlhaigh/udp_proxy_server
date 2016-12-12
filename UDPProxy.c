@@ -5,16 +5,7 @@ hashtable_t *ht;
 volatile int do_exit = 0;
 void sighandler(int);
 
-/* return 1 if original direction, 0 if reverse */
-int check_direction(struct sockaddr_in *src, struct sockaddr_in *dst, int port) {
-    if (ntohs(dst->sin_port) == port) {
-        return 0;
-    }
-    return 1;
-}
-
-/* returns difference between last and now in nanoseconds 
- * and updates last to now */
+/* returns difference between last and now in nanoseconds  */
 double get_diff(struct timespec *last) {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
@@ -25,7 +16,8 @@ double get_diff(struct timespec *last) {
     return diff;
 }
 
-/* elapsed = nanoseconds */
+/* for each entry in ht, increment available token/bandwidth based on time 
+ * elapsed (elapsed = nanoseconds). Prints counters before and after to log */
 void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock, FILE *log) {
     if (ht->size > 0) {
         int i;
@@ -34,21 +26,23 @@ void generate_token(hashtable_t *ht, char *buf, double elapsed, int sock, FILE *
             if (ht->table[i]) {
                 cur = ht->table[i];
                 /* increment counters */
-                print_log(log, "generate: s_ctr:%d d_ctr:%d elapsed:%f\n", \
-                        cur->s_ctr, cur->d_ctr, elapsed);
+                print_log(log, "Generating token: Current counters: s_ctr:%d \
+                        d_ctr:%d elapsed:%f\n", cur->s_ctr, cur->d_ctr, elapsed);
                 cur->s_ctr = MIN((TOKEN_MAX/2), \
                         (cur->s_ctr + ((elapsed * cur->rate) / 1000)));
                 cur->d_ctr = MIN((TOKEN_MAX/2), \
                         (cur->d_ctr + ((elapsed * cur->rate) / 1000)));
-                print_log(log, "updated s_ctr:%d d_ctr:%d\n", cur->s_ctr, cur->d_ctr);
+                print_log(log, "Updated counters: s_ctr:%d d_ctr:%d\n", \
+                        cur->s_ctr, cur->d_ctr);
             }
         }
     }
 }
 
+/* bind a socket on port and add it to master set for select() */
 int add_sock(int port, fd_set *master, int *fdmax) {
     /* add listener socket to the master set */
-    int sock = bind_sock(INADDR_ANY, port); //forward direction
+    int sock = bind_sock(INADDR_ANY, port);
     fcntl(sock, F_SETFL, O_NONBLOCK);
     FD_SET(sock, master);
     /* keep track of the biggest file descriptor */
@@ -56,12 +50,55 @@ int add_sock(int port, fd_set *master, int *fdmax) {
     return sock;
 }
 
+void read_config(char *filename, config_t *config) {
+    char buff[LINE_SZ];
+    int i;
+    char *token;
+    struct sockaddr_in addr;
+    tuple_t tuple;
+    FILE *file = fopen(filename, "r");
+    if (file == 0) {
+        die("error opening config file");
+    }
+    while (fgets(buff, sizeof(buff), file) > 0) {
+        token = strtok(buff, " ");
+        if (token == 0) {
+            die("error reading config file");
+        }
+        inet_aton(token, &addr.sin_addr);
+        token = strtok(buff, " ");
+        if (token == 0) {
+            die("error reading config file");
+        }
+        addr.sin_port = *token;
+        addr_to_tuple(&addr, &tuple);
+        copy_tuple(&tuple, &config->tuples[i]);
+        token = strtok(buff, " ");
+        if (token == 0) {
+            die("error reading config file");
+        }
+        config->rates[i++] = atoi(token);
+    }
+}
+
+/* checks the configuration file for a tuple and returns the configured rate
+ * returns 0 if tuple is not in configuration */
+int config_get_rate(tuple_t *tuple, config_t *config) {
+    int i;
+    for (i = 0; i < CONFIG_MAX; i++) {
+        if (compare_tuple(tuple, &config->tuples[i])) {
+            return config->rates[i];
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     struct sockaddr_in addr, src_addr, *cmsg_addr, *dst_addr;
     int sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
     int res, recd, len = sizeof(addr);
     char buff[BUFF_LEN];
-    char addr_buff[INET_ADDRSTRLEN];
+    //char addr_buff[INET_ADDRSTRLEN];
     fd_set master, readfds;
     struct itimerspec timer;
     ssize_t timer_read;
@@ -74,17 +111,19 @@ int main(int argc, char **argv) {
     entry_t *cur_entry;
     FILE *log;
     unsigned short port;
+    config_t config;
 
     if(argc < 3) {
-        die("Usage: argv[0] <port> <log_file>");
+        printf("Usage: %s <port> <log_file> <config_file>\n", argv[0]);
+        exit(1);
     }
 
+    port = atoi(argv[1]);
     log = fopen(argv[2], "w");
     if (log == 0) {
         die("error opening file");
     }
-
-    port = atoi(argv[1]);
+    read_config(argv[3], &config);
 
     /* prepare data structures for select() */
     FD_ZERO(&master);
@@ -94,7 +133,7 @@ int main(int argc, char **argv) {
     ht = new_ht();
     signal(SIGINT, sighandler);
 
-    /* add timer to master set */
+    /* add timer to master set for socket timeout */
     memset((char *) &timer, 0, sizeof(timer));
     timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     timer.it_value.tv_sec = 300; //change initial to 5 minutes
@@ -102,6 +141,7 @@ int main(int argc, char **argv) {
     timerfd_settime(timer_fd, 0, &timer, NULL);
     FD_SET(timer_fd, &master);
 
+    /* main listening socket for incoming connections */
     sock = add_sock(port, &master, &fdmax);
 
     /* prepare msghdr for receiving */
@@ -119,14 +159,13 @@ int main(int argc, char **argv) {
     msg.msg_controllen = CMSG_ARR_LEN;
 
     /* get current time for first time comparison */
-    //gettimeofday(&last, NULL);
     clock_gettime(CLOCK_REALTIME, &last);
 
     while(1) {
         readfds = master; // copy select table
         res = select(fdmax+1, &readfds, NULL, NULL, NULL);
         if (res < 0 && errno != EINTR) {
-            die("select");
+            die("select error");
         } else if (res == 0) { /* nothing ready */
             sleep(.001);
         } else if (do_exit) {
@@ -137,7 +176,6 @@ int main(int argc, char **argv) {
             if (fclose(log) != 0) {
                 die("error closing log file");
             }
-            printf("exit finished\n");
             exit(1);
         }
 
@@ -145,6 +183,7 @@ int main(int argc, char **argv) {
 
         /* deal with active file descriptors */
         for(i = 0; i <= fdmax; i++) {
+            print_log(log, "select: %d\n", i);
             if (FD_ISSET(i, &readfds)) {
                 recd = 0;
                 /* timer set: check timeout values */
@@ -159,6 +198,7 @@ int main(int argc, char **argv) {
                             /* time out */
                             if (difftime(now, ht->table[j]->last_use) > TIME_OUT) {
                                 /* clear from select table */
+                                FD_CLR(ht->table[j]->sock, &master);
                                 destroy_entry(ht->table[j]);
                                 ht->table[j] = 0;
                             }
@@ -203,7 +243,9 @@ int main(int argc, char **argv) {
                     if (idx == -1) {
                         new_sock = add_sock(0, &master, &fdmax);
                         cur_sock = new_sock;
-                        idx = add(key, &src_addr, cmsg_addr, new_sock, ht);
+                        idx = add(key, &src_addr, cmsg_addr, new_sock, \
+                                config_get_rate(key, &config), ht);
+                        print_log(log, "added new socket %d\n", new_sock);
                     } 
                     /* conn exists - update timer and decrement counter */
                     else {
@@ -211,7 +253,6 @@ int main(int argc, char **argv) {
                         cur_sock = cur_entry->sock;
                         cur_entry->last_use = time(NULL);
                         /* only send if ctr > 0 */
-                        print_log(log, "orig dir prev s_ctr:%d\n", cur_entry->s_ctr);
                         if (cur_entry->s_ctr >= 0) {
                             cur_entry->s_ctr -= recd;
                         }
@@ -219,7 +260,6 @@ int main(int argc, char **argv) {
                         else {
                             recd = 0;
                         }
-                        print_log(log, "orig dir after s_ctr:%d\n", cur_entry->s_ctr);
                     }
                 } //end in_sock
 
@@ -259,7 +299,6 @@ int main(int argc, char **argv) {
                     /* update time and counter */
                     cur_entry->last_use = time(NULL);
                     /* only send if ctr > 0 */
-                    print_log(log, "rev dir prev d_ctr:%d\n", cur_entry->d_ctr);
                     if (cur_entry->d_ctr > 0) {
                         ht->table[idx]->d_ctr -= recd;
                     }
@@ -267,7 +306,6 @@ int main(int argc, char **argv) {
                     else {
                         recd = 0;
                     }
-                    print_log(log, "rev dir after d_ctr:%d\n", cur_entry->d_ctr);
                 } //end rev direction sock
 
                 /* if data was received, send */
@@ -283,11 +321,11 @@ int main(int argc, char **argv) {
                     print_log(log, "sent packet. len:%d\n", recd);
                 }
                 else {
-                    print_log(log, "no packet sent");
+                    print_log(log, "packet dropped\n");
                 }
-            } //end select case?
-        } //end select for loop?
-    } //end while(1)?
+            } //end select case
+        } //end select for loop
+    } //end while(1)
 }//end main
 
     /* Clean up on ctrl-c */

@@ -26,6 +26,8 @@
 #define DEFAULT_RATE 1 /* MB per sec */
 #define CMSG_ARR_LEN 64
 #define PKT_SZ 1400
+#define CONFIG_MAX 64
+#define LINE_SZ 64
 
 /* from http://stackoverflow.com/questions/3437404/min-and-max-in-c */
 #define MIN(a,b) \
@@ -65,10 +67,15 @@ typedef struct hashtable {
     entry_t **table;
 } hashtable_t;
 
+typedef struct config {
+    tuple_t tuples[CONFIG_MAX];
+    int rates[CONFIG_MAX];
+} config_t;
+
 void print_entry(entry_t *e);
 void print_table(hashtable_t *ht);
 entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst, int sock);
+        struct sockaddr_in *orig_dst, int sock, int rate);
 void destroy_entry(entry_t *e);
 hashtable_t *new_ht();
 void destroy_ht(hashtable_t *ht);
@@ -77,7 +84,7 @@ int contains(tuple_t *key, hashtable_t *ht);
 entry_t *get(tuple_t *key, hashtable_t *ht);
 void remove_entry(tuple_t *key, hashtable_t *ht);
 int add(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst, int sock, hashtable_t *ht);
+        struct sockaddr_in *orig_dst, int sock, int rate, hashtable_t *ht);
 void addr_to_tuple(struct sockaddr_in *src, tuple_t *res);
 int compare_tuple(tuple_t *a, tuple_t *b);
 void copy_tuple(tuple_t *src, tuple_t *dst);

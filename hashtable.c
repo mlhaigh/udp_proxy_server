@@ -53,13 +53,12 @@ void print_table(hashtable_t *ht) {
 
 /* create a new key/value pair */
 entry_t *new_entry(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst, int sock) {
+        struct sockaddr_in *orig_dst, int sock, int rate) {
     entry_t *new_entry = malloc(sizeof(entry_t));
     new_entry->key = malloc(sizeof(tuple_t));
     copy_tuple(key, new_entry->key);
     new_entry->last_use = time(NULL); //start timer
-    new_entry->rate = DEFAULT_RATE;
-    /* rate control by port */
+    new_entry->rate = (rate > 0) ? rate : DEFAULT_RATE;
     new_entry->rate = ntohs(orig_dst->sin_port) - 2000;
     new_entry->s_ctr = TOKEN_MAX/2;
     new_entry->d_ctr = TOKEN_MAX/2;
@@ -185,10 +184,10 @@ void remove_entry(tuple_t *key, hashtable_t *ht) {
 /* add an entry to the hash table. Returns the index of the entry 
  * if an entry already exists, returns the index */
 int add(tuple_t *key, struct sockaddr_in *orig_src, \
-        struct sockaddr_in *orig_dst, int sock, hashtable_t *ht) {
+        struct sockaddr_in *orig_dst, int sock, int rate, hashtable_t *ht) {
     int hash_val = hash(key, ht);
     int idx = hash_val;
-    entry_t *entry = new_entry(key, orig_src, orig_dst, sock);
+    entry_t *entry = new_entry(key, orig_src, orig_dst, sock, rate);
     print_entry(entry);
     //location is occupied
     if (ht->table[hash_val]) {

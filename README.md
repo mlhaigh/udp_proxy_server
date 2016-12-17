@@ -41,11 +41,23 @@ To run test:
     4. start proxy on server machine
         "sudo ./UDPProxy 7777 log proxy.conf"
     5. start iperf clients on the client machine
-        "iperf -c <server_ip> -u -t 100 -i 1 -b 1000MB -p 2001> /tmp/log1 &"
+        "iperf -c <server_ip> -u -t 100 -i 1 -b 1000MB -p 2001 > /tmp/log1 &"
         "iperf -c <server_ip> -u -t 100 -i 1 -b 1000MB > -p 2010 /tmp/log2 "\
     6. confirm that the rates displayed by iperf match the rates in the config
         file for the corresponding ports
     7. remember to close background processes
         "pkill iperf"
 
+note: if packets are not received properly, you may have to run 
+./cleariprules.sh on the client machine. This will remove any iptables rules 
+that may interfere.
 
+Additionally, testing may be performed using UDPClient and UDPServer 
+included with UDPProxy. Simply prepare the proxy.conf and iprules in the same
+manner. Run the proxy as before:
+    sudo ./UDPProxy 7777 log proxy.conf
+On the server machine run:
+    sudo ./UDPServer 6666
+On the client run:
+    sudo ./UDPClient <server_ip> 6666 5555 1000
+This will send 1000 packets to the server and the server will echo them back

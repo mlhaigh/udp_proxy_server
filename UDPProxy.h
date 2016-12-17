@@ -35,7 +35,7 @@
        __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
 
-#define PRINT_LOG
+//#define PRINT_LOG
 #ifdef PRINT_LOG
     #define print_log(...) fprintf(__VA_ARGS__)
 #else

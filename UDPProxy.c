@@ -50,9 +50,10 @@ int add_sock(int port, fd_set *master, int *fdmax) {
     return sock;
 }
 
+/* parse configuration file and populate config_t with parameters */
 void read_config(char *filename, config_t *config) {
-    char buff[LINE_SZ];
-    int i;
+    char buff[LINE_SZ] = {0};
+    int i = 0;
     char *token;
     struct sockaddr_in addr;
     tuple_t tuple;
@@ -103,17 +104,13 @@ entry_t *get_entry_rev(int sock, struct sockaddr_in *src_addr, hashtable_t *ht) 
         die("error getting reverse entry");
     }
     if (ht->table[i]->sock == sock) {
-        printf("matched original\n");
         return ht->table[i];
     }
-    printf("did not match original\n");
     for (i = 0; i < ht->capacity; i++) {
         if (ht->table[i]->sock == sock) {
-            printf("found sock match\n");
             return ht->table[i];
         }
     }
-    printf("no match found\n");
     return 0;
 }
 
@@ -136,6 +133,8 @@ int main(int argc, char **argv) {
     FILE *log;
     unsigned short port;
     config_t config;
+
+    memset(&config, 0, sizeof(config));
 
     if(argc < 3) {
         printf("Usage: %s <port> <log_file> <config_file>\n", argv[0]);

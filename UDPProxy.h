@@ -20,7 +20,7 @@
 #include <errno.h>
 
 #define BUFF_LEN 4096
-#define TUPLE_SZ 10
+#define TUPLE_SZ 16
 #define TIME_OUT 300 /* How many second to terminate connection */
 #define TOKEN_MAX 10000 /* maximum rate build-up (in MB) */
 #define DEFAULT_RATE 100 /* MB per sec */

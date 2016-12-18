@@ -32,7 +32,7 @@ int bind_sock(int ip, int port) {
     }
 	if(bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
 		die("Bind error");
-	}
+	} 
     printf("Bound socket to %d:%d\n", ip, port);
 	return fd;
 }

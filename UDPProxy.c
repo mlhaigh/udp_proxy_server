@@ -80,6 +80,7 @@ void read_config(char *filename, config_t *config) {
         }
         config->rates[i++] = atoi(token);
     }
+    fclose(file);
 }
 
 /* checks the configuration file for a tuple and returns the configured rate
@@ -96,27 +97,58 @@ int config_get_rate(tuple_t *tuple, config_t *config) {
 
 /* for reverse direction new connection. Check if the hash returns the correct
  * socket. If not, check the hash table for an entry with a matching socket */
-entry_t *get_entry_rev(int sock, struct sockaddr_in *src_addr, hashtable_t *ht) {
-    int i;
+int get_entry_rev(int sock, struct sockaddr_in *src_addr, hashtable_t *ht) {
+    int i = 0;
     addr_to_tuple(src_addr, key);
     i = contains(key, ht);
     if (i < 0) {
         die("error getting reverse entry");
     }
     if (ht->table[i]->sock == sock) {
-        return ht->table[i];
+        return i;
     }
     for (i = 0; i < ht->capacity; i++) {
-        if (ht->table[i]->sock == sock) {
-            return ht->table[i];
+        if (ht->table[i]) {
+            if (ht->table[i]->sock == sock) {
+                return i;
+            }
         }
+    }
+    return -1;
+}
+
+/* returns 1 if the addrs are the same, 0 if different */
+int compare_addrs (struct sockaddr_in *a, struct sockaddr_in *b) {
+    if ((a->sin_addr.s_addr = b->sin_addr.s_addr) && \
+            (a->sin_port == b->sin_port)) {
+        return 1;
     }
     return 0;
 }
 
+/* return -1 if no entry found */
+int get_entry_fwrd(int sock, struct sockaddr_in *src_addr, \
+        struct sockaddr_in *dst_addr, tuple_t *key, hashtable_t *ht) {
+    int i = contains(key, ht);
+    if (i < 0) {
+        return -1;
+    }
+    if (compare_addrs(src_addr, &ht->table[i]->orig_src)) {
+        return i;
+    }
+    for (i = 0; i < ht->capacity; i++) {
+        if (ht->table[i]) {
+            if (compare_addrs(src_addr, &ht->table[i]->orig_src)) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
 int main(int argc, char **argv) {
     struct sockaddr_in addr, src_addr, *cmsg_addr, *dst_addr;
-    int sock, new_sock, cur_sock, idx, fdmax, i, j, timer_fd; 
+    int sock, cur_sock, idx, fdmax, i, j, timer_fd; 
     int res, recd, len = sizeof(addr);
     char buff[BUFF_LEN];
     //char addr_buff[INET_ADDRSTRLEN];
@@ -259,16 +291,18 @@ int main(int argc, char **argv) {
                     }
 
                     dst_addr = cmsg_addr;
+                    addr_to_tuple(dst_addr, key);
+                    idx = get_entry_fwrd(i, &src_addr, dst_addr, key, ht);
+
                     /* check for socket in table */
-                    addr_to_tuple(cmsg_addr, key);
-                    idx = contains(key, ht);
+                    //addr_to_tuple(cmsg_addr, key);
+                    //idx = contains(key, ht);
                     /* new connection: create entry */
                     if (idx == -1) {
-                        new_sock = add_sock(0, &master, &fdmax);
-                        cur_sock = new_sock;
-                        idx = add(key, &src_addr, cmsg_addr, new_sock, \
+                        cur_sock = add_sock(0, &master, &fdmax);
+                        idx = add(key, &src_addr, dst_addr, cur_sock, \
                                 config_get_rate(key, &config), ht);
-                        print_log(log, "added new socket %d\n", new_sock);
+                        print_log(log, "added new socket %d\n", cur_sock);
                     } 
                     /* conn exists - update timer and decrement counter */
                     else {
@@ -309,7 +343,8 @@ int main(int argc, char **argv) {
                         }
                     }
 
-                    cur_entry = get_entry_rev(i, &src_addr, ht);
+                    idx = get_entry_rev(i, &src_addr, ht);
+                    cur_entry = ht->table[idx];
                     cur_sock = cur_entry->sock;
                     /* get original source addr */
                     dst_addr = &(cur_entry->orig_src);

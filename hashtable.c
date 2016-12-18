@@ -192,7 +192,7 @@ int add(tuple_t *key, struct sockaddr_in *orig_src, \
     //location is occupied
     if (ht->table[hash_val]) {
         int i;
-        for(i = 0; i < ht->capacity; i++) {
+        for(i = 1; i < ht->capacity - 1; i++) {
             idx = (hash_val + i) % ht->capacity;
             //found an unoccupied container
             if(!ht->table[idx]) {
